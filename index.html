@@ -231,10 +231,6 @@
       line-height: 1.4;
     }
 
-    .hidden-netlify-form {
-      display: none;
-    }
-
     .result {
       margin-top: 22px;
       padding: 18px;
@@ -282,7 +278,7 @@
 </head>
 
 <body>
-<form id="brodiprintOrderForm" name="brodiprint-order" class="app" method="POST" netlify data-netlify="true" data-netlify-honeypot="bot-field" enctype="multipart/form-data">
+<form id="brodiprintOrderForm" name="brodiprint-order" class="app">
   <div class="brand">
     <h1>BrodiPrint калкулатор за ориентировъчна цена</h1>
     <span>DTF печат и бродерия | цени без ДДС</span>
@@ -360,7 +356,7 @@
       <div class="result-line"><span>Размер:</span><strong id="dtfSizeResult">-</strong></div>
       <div class="result-line"><span>Количество:</span><strong id="dtfQtyResult">-</strong></div>
       <div class="result-line total"><span>Крайна цена:</span><strong id="dtfTotalResult">-</strong></div>
-      <button class="copy" type="submit" id="dtfEmail" data-order-type="dtf">Изпрати заявка</button>
+      <button class="copy" type="button" id="dtfEmail" data-order-type="dtf">Изпрати заявка</button>
       <button class="copy" type="button" id="dtfCopy">Копирай оферта</button>
       <div id="dtfCopyStatus" class="copy-status"></div>
     </div>
@@ -426,7 +422,7 @@
       <div class="result-line"><span>Размер:</span><strong id="embSizeResult">-</strong></div>
       <div class="result-line"><span>Количество:</span><strong id="embQtyResult">-</strong></div>
       <div class="result-line total"><span>Ориентировъчна цена:</span><strong id="embTotalResult">-</strong></div>
-      <button class="copy" type="submit" id="embEmail" data-order-type="emb">Изпрати заявка</button>
+      <button class="copy" type="button" id="embEmail" data-order-type="emb">Изпрати заявка</button>
       <button class="copy" type="button" id="embCopy">Копирай оферта</button>
       <div id="embCopyStatus" class="copy-status"></div>
     </div>
@@ -436,19 +432,6 @@
     Калкулаторите са ориентировъчни. Крайна цена се потвърждава след проверка на файла.
   </div>
 
-  <div class="hidden-netlify-form">
-    <input type="hidden" name="form-name" value="brodiprint-order">
-    <input type="text" name="bot-field">
-    <input type="text" name="name">
-    <input type="email" name="email">
-    <input type="tel" name="phone">
-    <input type="text" name="service">
-    <input type="text" name="size">
-    <input type="text" name="quantity">
-    <input type="text" name="total">
-    <input type="text" name="file_name">
-    <textarea name="message"></textarea>
-  </div>
 </form>
 
 <script>
@@ -474,7 +457,8 @@ document.getElementById("dtfCalculate").addEventListener("click", calculateDTF);
 document.getElementById("embCalculate").addEventListener("click", calculateEmbroidery);
 document.getElementById("dtfCopy").addEventListener("click", () => copyQuote("dtf"));
 document.getElementById("embCopy").addEventListener("click", () => copyQuote("emb"));
-document.getElementById("brodiprintOrderForm").addEventListener("submit", prepareOrderSubmit);
+document.getElementById("dtfEmail").addEventListener("click", () => sendOrderByEmail("dtf"));
+document.getElementById("embEmail").addEventListener("click", () => sendOrderByEmail("emb"));
 
 if (new URLSearchParams(window.location.search).get("sent") === "1") {
   document.getElementById("submitSuccess").style.display = "block";
@@ -756,14 +740,10 @@ function getClientDetails(type) {
   return { name, phone, email };
 }
 
-function prepareOrderSubmit(event) {
-  const type = event.submitter ? event.submitter.dataset.orderType : null;
-  if (!type) return;
-
+function sendOrderByEmail(type) {
   const order = lastOrders[type];
   const quote = lastQuotes[type];
   if (!order || !quote) {
-    event.preventDefault();
     if (type === "dtf") calculateDTF();
     if (type === "emb") calculateEmbroidery();
     return;
@@ -774,26 +754,29 @@ function prepareOrderSubmit(event) {
   const status = document.getElementById(type + "CopyStatus");
 
   if (!details.name || (!details.phone && !details.email)) {
-    event.preventDefault();
     orderError.style.display = "block";
     return;
   }
 
   orderError.style.display = "none";
-  status.textContent = "Изпращане на заявката...";
+  status.textContent = "Отваряне на имейл със заявката...";
   status.style.display = "block";
 
-  const form = document.getElementById("brodiprintOrderForm");
-  form.elements["bot-field"].value = "";
-  form.elements["name"].value = details.name;
-  form.elements["email"].value = details.email;
-  form.elements["phone"].value = details.phone;
-  form.elements["service"].value = order.service;
-  form.elements["size"].value = order.size;
-  form.elements["quantity"].value = order.qty + " бр.";
-  form.elements["total"].value = order.total + " без ДДС";
-  form.elements["file_name"].value = order.fileName || "не е качен";
-  form.elements["message"].value = quote;
+  const message = [
+    quote,
+    "",
+    "Клиент:",
+    "Име: " + details.name,
+    "Телефон: " + (details.phone || "-"),
+    "Имейл: " + (details.email || "-")
+  ].join("\n");
+
+  const subject = "Заявка BrodiPrint - " + order.service;
+  const mailto = "mailto:brodiprint.ruse@yahoo.com"
+    + "?subject=" + encodeURIComponent(subject)
+    + "&body=" + encodeURIComponent(message);
+
+  window.location.href = mailto;
 }
 
 if ("serviceWorker" in navigator) {
