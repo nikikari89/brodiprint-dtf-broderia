@@ -457,8 +457,8 @@ document.getElementById("dtfCalculate").addEventListener("click", calculateDTF);
 document.getElementById("embCalculate").addEventListener("click", calculateEmbroidery);
 document.getElementById("dtfCopy").addEventListener("click", () => copyQuote("dtf"));
 document.getElementById("embCopy").addEventListener("click", () => copyQuote("emb"));
-document.getElementById("dtfEmail").addEventListener("click", () => sendOrderByEmail("dtf"));
-document.getElementById("embEmail").addEventListener("click", () => sendOrderByEmail("emb"));
+document.getElementById("dtfEmail").addEventListener("click", () => openGoogleOrderForm("dtf"));
+document.getElementById("embEmail").addEventListener("click", () => openGoogleOrderForm("emb"));
 
 if (new URLSearchParams(window.location.search).get("sent") === "1") {
   document.getElementById("submitSuccess").style.display = "block";
@@ -740,7 +740,7 @@ function getClientDetails(type) {
   return { name, phone, email };
 }
 
-function sendOrderByEmail(type) {
+function openGoogleOrderForm(type) {
   const order = lastOrders[type];
   const quote = lastQuotes[type];
   if (!order || !quote) {
@@ -759,24 +759,10 @@ function sendOrderByEmail(type) {
   }
 
   orderError.style.display = "none";
-  status.textContent = "Отваряне на имейл със заявката...";
+  status.textContent = "Отваряне на формата за заявка...";
   status.style.display = "block";
 
-  const message = [
-    quote,
-    "",
-    "Клиент:",
-    "Име: " + details.name,
-    "Телефон: " + (details.phone || "-"),
-    "Имейл: " + (details.email || "-")
-  ].join("\n");
-
-  const subject = "Заявка BrodiPrint - " + order.service;
-  const mailto = "mailto:brodiprint.ruse@yahoo.com"
-    + "?subject=" + encodeURIComponent(subject)
-    + "&body=" + encodeURIComponent(message);
-
-  window.location.href = mailto;
+  window.open("https://docs.google.com/forms/d/e/1FAIpQLScGEj8TvOqCe4JgFY-dLpAzu3PC4DkWZpzvk9TYwLssD5m0FQ/viewform", "_blank", "noopener");
 }
 
 if ("serviceWorker" in navigator) {
