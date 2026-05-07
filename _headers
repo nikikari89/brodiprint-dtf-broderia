@@ -1,0 +1,10 @@
+/manifest.json
+  Content-Type: application/manifest+json; charset=utf-8
+  Cache-Control: public, max-age=3600
+
+/*.html
+  Content-Type: text/html; charset=utf-8
+  Cache-Control: no-cache
+
+/icon-*.png
+  Cache-Control: public, max-age=31536000, immutable
