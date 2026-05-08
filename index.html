@@ -714,6 +714,13 @@ function updateEmbRatio() {
   if (embActiveInput === "height" && h) embWidth.value = (h * embRatio).toFixed(1);
 }
 
+function formatEmbroiderySize(width, height) {
+  if (width && height) return width.toFixed(1) + " × " + height.toFixed(1) + " см";
+  if (width) return width.toFixed(1) + " см ширина";
+  if (height) return height.toFixed(1) + " см височина";
+  return "не е въведен";
+}
+
 function calculateEmbroidery() {
   const w = parsePositiveNumber(embWidth.value);
   const h = parsePositiveNumber(embHeight.value);
@@ -731,7 +738,7 @@ function calculateEmbroidery() {
   const priceBeforeMinimum = (embStitchCount / 1000) * EMB_PRICE_PER_THOUSAND;
   const priceOne = Math.max(priceBeforeMinimum, EMB_MIN_PRICE);
   const total = priceOne * qty;
-  const sizeText = w && h ? w.toFixed(1) + " × " + h.toFixed(1) + " см" : "не е въведен";
+  const sizeText = formatEmbroiderySize(w, h);
   const totalText = total.toFixed(2) + " €";
   const fileName = embUpload.files[0] ? embUpload.files[0].name : "";
   const dstFileName = embDstUpload.files[0] ? embDstUpload.files[0].name : "";
