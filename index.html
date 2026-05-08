@@ -355,6 +355,7 @@
       <div class="result-line"><span>Тип печат:</span><strong id="dtfTypeResult">-</strong></div>
       <div class="result-line"><span>Размер:</span><strong id="dtfSizeResult">-</strong></div>
       <div class="result-line"><span>Количество:</span><strong id="dtfQtyResult">-</strong></div>
+      <div class="result-line"><span>Цена за 1 бр.:</span><strong id="dtfPriceOneResult">-</strong></div>
       <div class="result-line total"><span>Крайна цена:</span><strong id="dtfTotalResult">-</strong></div>
       <button class="copy" type="submit" id="dtfEmail" data-order-type="dtf">Изпрати заявка</button>
       <button class="copy" type="button" id="dtfCopy">Копирай оферта</button>
@@ -422,6 +423,7 @@
       <div class="result-line"><span>Размер:</span><strong id="embSizeResult">-</strong></div>
       <div class="result-line"><span>Бодове:</span><strong id="embStitchesResult">-</strong></div>
       <div class="result-line"><span>Количество:</span><strong id="embQtyResult">-</strong></div>
+      <div class="result-line"><span>Цена за 1 бр.:</span><strong id="embPriceOneResult">-</strong></div>
       <div class="result-line total"><span>Ориентировъчна цена:</span><strong id="embTotalResult">-</strong></div>
       <button class="copy" type="submit" id="embEmail" data-order-type="emb">Изпрати заявка</button>
       <button class="copy" type="button" id="embCopy">Копирай оферта</button>
@@ -440,6 +442,7 @@
     <input type="text" name="fi-text-service">
     <input type="text" name="fi-text-print_size">
     <input type="text" name="fi-text-quantity">
+    <input type="text" name="fi-text-price_one">
     <input type="text" name="fi-text-total_price">
     <input type="text" name="fi-text-uploaded_file_name">
     <input type="text" name="fi-text-stitches">
@@ -600,18 +603,21 @@ function calculateDTF() {
 
   const total = price * qty;
   const sizeText = w && h ? w.toFixed(1) + " × " + h.toFixed(1) + " см" : "-";
+  const priceOneText = price.toFixed(2) + " €";
   const totalText = total.toFixed(2) + " €";
   const fileName = dtfUpload.files[0] ? dtfUpload.files[0].name : "";
 
   document.getElementById("dtfTypeResult").innerText = selectedTypeText;
   document.getElementById("dtfSizeResult").innerText = sizeText;
   document.getElementById("dtfQtyResult").innerText = qty + " бр.";
+  document.getElementById("dtfPriceOneResult").innerText = priceOneText;
   document.getElementById("dtfTotalResult").innerText = totalText;
-  lastQuotes.dtf = buildQuoteText("DTF печат - " + selectedTypeText, sizeText, qty, totalText, fileName);
+  lastQuotes.dtf = buildQuoteText("DTF печат - " + selectedTypeText, sizeText, qty, priceOneText, totalText, fileName);
   lastOrders.dtf = {
     service: "DTF печат - " + selectedTypeText,
     size: sizeText,
     qty,
+    priceOne: priceOneText,
     total: totalText,
     fileName
   };
@@ -811,6 +817,7 @@ function calculateEmbroidery() {
   const priceOne = Math.max(priceBeforeMinimum, EMB_MIN_PRICE);
   const total = priceOne * qty;
   const sizeText = formatEmbroiderySize(w, h);
+  const priceOneText = priceOne.toFixed(2) + " €";
   const totalText = total.toFixed(2) + " €";
   const fileName = embUpload.files[0] ? embUpload.files[0].name : "";
   const dstFileName = embDstUpload.files[0] ? embDstUpload.files[0].name : "";
@@ -818,12 +825,14 @@ function calculateEmbroidery() {
   document.getElementById("embSizeResult").innerText = sizeText;
   document.getElementById("embStitchesResult").innerText = formatInteger(embStitchCount);
   document.getElementById("embQtyResult").innerText = qty + " бр.";
+  document.getElementById("embPriceOneResult").innerText = priceOneText;
   document.getElementById("embTotalResult").innerText = totalText;
-  lastQuotes.emb = buildQuoteText("Бродерия", sizeText, qty, totalText, dstFileName || fileName, formatInteger(embStitchCount));
+  lastQuotes.emb = buildQuoteText("Бродерия", sizeText, qty, priceOneText, totalText, dstFileName || fileName, formatInteger(embStitchCount));
   lastOrders.emb = {
     service: "Бродерия",
     size: sizeText,
     qty,
+    priceOne: priceOneText,
     total: totalText,
     fileName: dstFileName || fileName,
     stitches: formatInteger(embStitchCount)
@@ -835,12 +844,13 @@ function calculateEmbroidery() {
   result.style.display = "block";
 }
 
-function buildQuoteText(service, size, qty, total, fileName, stitches) {
+function buildQuoteText(service, size, qty, priceOne, total, fileName, stitches) {
   const lines = [
     "BrodiPrint ориентировъчна оферта",
     "Услуга: " + service,
     "Размер: " + size,
     "Количество: " + qty + " бр.",
+    "Цена за 1 бр.: " + priceOne + " без ДДС",
     "Крайна цена: " + total + " без ДДС",
     "Файл: " + (fileName || "не е качен")
   ];
@@ -919,6 +929,7 @@ function prepareOrderSubmit(event) {
   form.elements["fi-text-service"].value = order.service;
   form.elements["fi-text-print_size"].value = order.size;
   form.elements["fi-text-quantity"].value = order.qty + " бр.";
+  form.elements["fi-text-price_one"].value = order.priceOne + " без ДДС";
   form.elements["fi-text-total_price"].value = order.total + " без ДДС";
   form.elements["fi-text-uploaded_file_name"].value = order.fileName || "не е качен";
   form.elements["fi-text-stitches"].value = order.stitches || "";
