@@ -295,7 +295,7 @@
     <div class="upload-box">
       <strong>Качете изображение за DTF печат</strong>
       <div class="image-info">По желание. Финалната цена се потвърждава след преглед на файла.</div>
-      <input id="dtfImageUpload" name="dtf_file" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml">
+      <input id="dtfImageUpload" name="fi-file-dtf_file" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml">
     </div>
 
     <div id="dtfPreviewWrap" class="preview-wrap">
@@ -366,7 +366,7 @@
     <div class="upload-box">
       <strong>Качете лого / изображение</strong>
       <div class="image-info">По желание. Финалната цена се потвърждава след преглед на файла.</div>
-      <input id="embImageUpload" name="emb_file" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml">
+      <input id="embImageUpload" name="fi-file-emb_file" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml">
     </div>
 
     <div id="embPreviewWrap" class="preview-wrap">
@@ -433,15 +433,15 @@
   </div>
 
   <div style="display: none;">
-    <input type="text" name="client_name">
-    <input type="email" name="client_email">
-    <input type="tel" name="client_phone">
-    <input type="text" name="service">
-    <input type="text" name="print_size">
-    <input type="text" name="quantity">
-    <input type="text" name="total_price">
-    <input type="text" name="uploaded_file_name">
-    <textarea name="quote"></textarea>
+    <input type="text" name="fi-sender-fullName">
+    <input type="email" name="fi-sender-email">
+    <input type="text" name="fi-text-phone">
+    <input type="text" name="fi-text-service">
+    <input type="text" name="fi-text-print_size">
+    <input type="text" name="fi-text-quantity">
+    <input type="text" name="fi-text-total_price">
+    <input type="text" name="fi-text-uploaded_file_name">
+    <textarea name="fi-text-quote"></textarea>
   </div>
 </form>
 
@@ -778,15 +778,15 @@ function prepareOrderSubmit(event) {
   status.style.display = "block";
 
   const form = document.getElementById("brodiprintOrderForm");
-  form.elements["client_name"].value = details.name;
-  form.elements["client_email"].value = details.email;
-  form.elements["client_phone"].value = details.phone;
-  form.elements["service"].value = order.service;
-  form.elements["print_size"].value = order.size;
-  form.elements["quantity"].value = order.qty + " бр.";
-  form.elements["total_price"].value = order.total + " без ДДС";
-  form.elements["uploaded_file_name"].value = order.fileName || "не е качен";
-  form.elements["quote"].value = quote;
+  form.elements["fi-sender-fullName"].value = details.name;
+  form.elements["fi-sender-email"].value = details.email;
+  form.elements["fi-text-phone"].value = details.phone;
+  form.elements["fi-text-service"].value = order.service;
+  form.elements["fi-text-print_size"].value = order.size;
+  form.elements["fi-text-quantity"].value = order.qty + " бр.";
+  form.elements["fi-text-total_price"].value = order.total + " без ДДС";
+  form.elements["fi-text-uploaded_file_name"].value = order.fileName || "не е качен";
+  form.elements["fi-text-quote"].value = quote;
 }
 
 if ("serviceWorker" in navigator) {
