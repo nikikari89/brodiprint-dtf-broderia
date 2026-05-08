@@ -954,6 +954,13 @@ function makeSafePathPart(value) {
     .slice(0, 60) || "client";
 }
 
+function makeSafeFileName(value) {
+  const parts = (value || "file").split(".");
+  const ext = parts.length > 1 ? "." + parts.pop().toLowerCase().replace(/[^a-z0-9]/g, "") : "";
+  const name = parts.join(".") || "file";
+  return makeSafePathPart(name) + ext;
+}
+
 function encodeStoragePath(path) {
   return path.split("/").map(encodeURIComponent).join("/");
 }
@@ -997,19 +1004,19 @@ async function saveOrderToSupabase(type, order, quote, details) {
   let embFilePath = "";
 
   try {
-    dtfFilePath = dtfFile ? await uploadSupabaseFile(dtfFile, basePath + "/dtf-" + dtfFile.name) : "";
+    dtfFilePath = dtfFile ? await uploadSupabaseFile(dtfFile, basePath + "/dtf-" + makeSafeFileName(dtfFile.name)) : "";
   } catch (error) {
     console.error("DTF file upload failed", error);
   }
 
   try {
-    dstFilePath = dstFile ? await uploadSupabaseFile(dstFile, basePath + "/dst-" + dstFile.name) : "";
+    dstFilePath = dstFile ? await uploadSupabaseFile(dstFile, basePath + "/dst-" + makeSafeFileName(dstFile.name)) : "";
   } catch (error) {
     console.error("DST file upload failed", error);
   }
 
   try {
-    embFilePath = embFile ? await uploadSupabaseFile(embFile, basePath + "/logo-" + embFile.name) : "";
+    embFilePath = embFile ? await uploadSupabaseFile(embFile, basePath + "/logo-" + makeSafeFileName(embFile.name)) : "";
   } catch (error) {
     console.error("Embroidery file upload failed", error);
   }
