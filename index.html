@@ -992,9 +992,27 @@ async function saveOrderToSupabase(type, order, quote, details) {
   const dstFile = type === "emb" ? embDstUpload.files[0] : null;
   const embFile = type === "emb" ? embUpload.files[0] : null;
 
-  const dtfFilePath = dtfFile ? await uploadSupabaseFile(dtfFile, basePath + "/dtf-" + dtfFile.name) : "";
-  const dstFilePath = dstFile ? await uploadSupabaseFile(dstFile, basePath + "/dst-" + dstFile.name) : "";
-  const embFilePath = embFile ? await uploadSupabaseFile(embFile, basePath + "/logo-" + embFile.name) : "";
+  let dtfFilePath = "";
+  let dstFilePath = "";
+  let embFilePath = "";
+
+  try {
+    dtfFilePath = dtfFile ? await uploadSupabaseFile(dtfFile, basePath + "/dtf-" + dtfFile.name) : "";
+  } catch (error) {
+    console.error("DTF file upload failed", error);
+  }
+
+  try {
+    dstFilePath = dstFile ? await uploadSupabaseFile(dstFile, basePath + "/dst-" + dstFile.name) : "";
+  } catch (error) {
+    console.error("DST file upload failed", error);
+  }
+
+  try {
+    embFilePath = embFile ? await uploadSupabaseFile(embFile, basePath + "/logo-" + embFile.name) : "";
+  } catch (error) {
+    console.error("Embroidery file upload failed", error);
+  }
 
   const response = await fetch(SUPABASE_URL + "/rest/v1/orders", {
     method: "POST",
