@@ -501,6 +501,10 @@ const DTF_PRICES = {
 const EMB_PRICE_PER_THOUSAND = 0.80;
 const EMB_MIN_PRICE = 5;
 
+const SUPABASE_URL = "https://qsgvffdersemdtxgmtvi.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFzZ3ZmZmRlcnNlbWR0eGdtdHZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgyNTg3NzMsImV4cCI6MjA5MzgzNDc3M30.1KVHJ3jLr3O9DRB0bJzqGHbxn0A2fq9OEfCMNmNyd7k";
+const SUPABASE_BUCKET = "order-files";
+
 const lastQuotes = {
   dtf: "",
   emb: ""
@@ -938,14 +942,109 @@ function getClientDetails(type) {
   return { name, phone, email };
 }
 
-function prepareOrderSubmit(event) {
+function isSupabaseConfigured() {
+  return SUPABASE_URL.startsWith("https://") && SUPABASE_ANON_KEY.length > 20;
+}
+
+function makeSafePathPart(value) {
+  return (value || "client")
+    .toLowerCase()
+    .replace(/[^a-z0-9а-яё]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60) || "client";
+}
+
+function encodeStoragePath(path) {
+  return path.split("/").map(encodeURIComponent).join("/");
+}
+
+async function uploadSupabaseFile(file, path) {
+  if (!file) return "";
+
+  const response = await fetch(
+    SUPABASE_URL + "/storage/v1/object/" + SUPABASE_BUCKET + "/" + encodeStoragePath(path),
+    {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: "Bearer " + SUPABASE_ANON_KEY,
+        "Content-Type": file.type || "application/octet-stream",
+        "x-upsert": "false"
+      },
+      body: file
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return path;
+}
+
+async function saveOrderToSupabase(type, order, quote, details) {
+  if (!isSupabaseConfigured()) return;
+
+  const orderId = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
+  const clientFolder = makeSafePathPart(details.name + "-" + (details.phone || details.email));
+  const basePath = "clients/" + clientFolder + "/" + orderId;
+  const dtfFile = type === "dtf" ? dtfUpload.files[0] : null;
+  const dstFile = type === "emb" ? embDstUpload.files[0] : null;
+  const embFile = type === "emb" ? embUpload.files[0] : null;
+
+  const dtfFilePath = dtfFile ? await uploadSupabaseFile(dtfFile, basePath + "/dtf-" + dtfFile.name) : "";
+  const dstFilePath = dstFile ? await uploadSupabaseFile(dstFile, basePath + "/dst-" + dstFile.name) : "";
+  const embFilePath = embFile ? await uploadSupabaseFile(embFile, basePath + "/logo-" + embFile.name) : "";
+
+  const response = await fetch(SUPABASE_URL + "/rest/v1/orders", {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: "Bearer " + SUPABASE_ANON_KEY,
+      "Content-Type": "application/json",
+      Prefer: "return=minimal"
+    },
+    body: JSON.stringify({
+      id: orderId,
+      client_name: details.name,
+      client_phone: details.phone,
+      client_email: details.email,
+      service: order.service,
+      print_size: order.size,
+      quantity: order.qty,
+      price_one: order.priceOne || "",
+      rate_per_1000: order.rate || "",
+      stitch_price: order.stitchPrice || "",
+      minimum_price: order.minimumOne || "",
+      stitch_total: order.stitchTotal || "",
+      total_price: order.total,
+      stitches: order.stitches || "",
+      file_name: order.fileName || "",
+      dtf_file_path: dtfFilePath,
+      dst_file_path: dstFilePath,
+      embroidery_file_path: embFilePath,
+      quote
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+}
+
+async function prepareOrderSubmit(event) {
+  if (event.target.dataset.readyToSubmit === "true") {
+    event.target.dataset.readyToSubmit = "";
+    return;
+  }
+
   const type = event.submitter ? event.submitter.dataset.orderType : null;
   if (!type) return;
+  event.preventDefault();
 
   const order = lastOrders[type];
   const quote = lastQuotes[type];
   if (!order || !quote) {
-    event.preventDefault();
     if (type === "dtf") calculateDTF();
     if (type === "emb") calculateEmbroidery();
     return;
@@ -956,7 +1055,6 @@ function prepareOrderSubmit(event) {
   const status = document.getElementById(type + "CopyStatus");
 
   if (!details.name || (!details.phone && !details.email)) {
-    event.preventDefault();
     orderError.style.display = "block";
     return;
   }
@@ -982,6 +1080,19 @@ function prepareOrderSubmit(event) {
   form.elements["fi-text-uploaded_file_name"].value = order.fileName || "не е качен";
   form.elements["fi-text-stitches"].value = order.stitches || "";
   form.elements["fi-text-quote"].value = quote;
+
+  try {
+    if (isSupabaseConfigured()) {
+      status.textContent = "Записване на поръчката в базата данни...";
+      await saveOrderToSupabase(type, order, quote, details);
+    }
+  } catch (error) {
+    console.error(error);
+    status.textContent = "Поръчката ще се изпрати по имейл. Записът в базата не успя.";
+  }
+
+  form.dataset.readyToSubmit = "true";
+  form.requestSubmit(event.submitter);
 }
 
 if ("serviceWorker" in navigator) {
