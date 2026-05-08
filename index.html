@@ -278,7 +278,7 @@
 </head>
 
 <body>
-<form id="brodiprintOrderForm" name="brodiprint-order" class="app">
+<form id="brodiprintOrderForm" name="brodiprint-order" class="app" method="POST" action="https://forminit.com/f/0w1vrsbfz7h" enctype="multipart/form-data">
   <div class="brand">
     <h1>BrodiPrint калкулатор за ориентировъчна цена</h1>
     <span>DTF печат и бродерия | цени без ДДС</span>
@@ -356,7 +356,7 @@
       <div class="result-line"><span>Размер:</span><strong id="dtfSizeResult">-</strong></div>
       <div class="result-line"><span>Количество:</span><strong id="dtfQtyResult">-</strong></div>
       <div class="result-line total"><span>Крайна цена:</span><strong id="dtfTotalResult">-</strong></div>
-      <button class="copy" type="button" id="dtfEmail" data-order-type="dtf">Изпрати заявка</button>
+      <button class="copy" type="submit" id="dtfEmail" data-order-type="dtf">Изпрати заявка</button>
       <button class="copy" type="button" id="dtfCopy">Копирай оферта</button>
       <div id="dtfCopyStatus" class="copy-status"></div>
     </div>
@@ -422,7 +422,7 @@
       <div class="result-line"><span>Размер:</span><strong id="embSizeResult">-</strong></div>
       <div class="result-line"><span>Количество:</span><strong id="embQtyResult">-</strong></div>
       <div class="result-line total"><span>Ориентировъчна цена:</span><strong id="embTotalResult">-</strong></div>
-      <button class="copy" type="button" id="embEmail" data-order-type="emb">Изпрати заявка</button>
+      <button class="copy" type="submit" id="embEmail" data-order-type="emb">Изпрати заявка</button>
       <button class="copy" type="button" id="embCopy">Копирай оферта</button>
       <div id="embCopyStatus" class="copy-status"></div>
     </div>
@@ -432,6 +432,17 @@
     Калкулаторите са ориентировъчни. Крайна цена се потвърждава след проверка на файла.
   </div>
 
+  <div style="display: none;">
+    <input type="text" name="client_name">
+    <input type="email" name="client_email">
+    <input type="tel" name="client_phone">
+    <input type="text" name="service">
+    <input type="text" name="print_size">
+    <input type="text" name="quantity">
+    <input type="text" name="total_price">
+    <input type="text" name="uploaded_file_name">
+    <textarea name="quote"></textarea>
+  </div>
 </form>
 
 <script>
@@ -457,8 +468,7 @@ document.getElementById("dtfCalculate").addEventListener("click", calculateDTF);
 document.getElementById("embCalculate").addEventListener("click", calculateEmbroidery);
 document.getElementById("dtfCopy").addEventListener("click", () => copyQuote("dtf"));
 document.getElementById("embCopy").addEventListener("click", () => copyQuote("emb"));
-document.getElementById("dtfEmail").addEventListener("click", () => openGoogleOrderForm("dtf"));
-document.getElementById("embEmail").addEventListener("click", () => openGoogleOrderForm("emb"));
+document.getElementById("brodiprintOrderForm").addEventListener("submit", prepareOrderSubmit);
 
 if (new URLSearchParams(window.location.search).get("sent") === "1") {
   document.getElementById("submitSuccess").style.display = "block";
@@ -740,10 +750,14 @@ function getClientDetails(type) {
   return { name, phone, email };
 }
 
-function openGoogleOrderForm(type) {
+function prepareOrderSubmit(event) {
+  const type = event.submitter ? event.submitter.dataset.orderType : null;
+  if (!type) return;
+
   const order = lastOrders[type];
   const quote = lastQuotes[type];
   if (!order || !quote) {
+    event.preventDefault();
     if (type === "dtf") calculateDTF();
     if (type === "emb") calculateEmbroidery();
     return;
@@ -754,6 +768,7 @@ function openGoogleOrderForm(type) {
   const status = document.getElementById(type + "CopyStatus");
 
   if (!details.name || (!details.phone && !details.email)) {
+    event.preventDefault();
     orderError.style.display = "block";
     return;
   }
@@ -762,7 +777,16 @@ function openGoogleOrderForm(type) {
   status.textContent = "Отваряне на формата за заявка...";
   status.style.display = "block";
 
-  window.open("https://docs.google.com/forms/d/e/1FAIpQLScGEj8TvOqCe4JgFY-dLpAzu3PC4DkWZpzvk9TYwLssD5m0FQ/viewform", "_blank", "noopener");
+  const form = document.getElementById("brodiprintOrderForm");
+  form.elements["client_name"].value = details.name;
+  form.elements["client_email"].value = details.email;
+  form.elements["client_phone"].value = details.phone;
+  form.elements["service"].value = order.service;
+  form.elements["print_size"].value = order.size;
+  form.elements["quantity"].value = order.qty + " бр.";
+  form.elements["total_price"].value = order.total + " без ДДС";
+  form.elements["uploaded_file_name"].value = order.fileName || "не е качен";
+  form.elements["quote"].value = quote;
 }
 
 if ("serviceWorker" in navigator) {
