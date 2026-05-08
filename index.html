@@ -422,10 +422,12 @@
     <div id="embResult" class="result">
       <div class="result-line"><span>Размер:</span><strong id="embSizeResult">-</strong></div>
       <div class="result-line"><span>Бодове:</span><strong id="embStitchesResult">-</strong></div>
+      <div class="result-line"><span>Цена за 1000 бода:</span><strong id="embRateResult">-</strong></div>
       <div class="result-line"><span>Количество:</span><strong id="embQtyResult">-</strong></div>
-      <div class="result-line"><span>Цена по бодове:</span><strong id="embStitchPriceResult">-</strong></div>
-      <div class="result-line"><span>Цена за 1 бр.:</span><strong id="embPriceOneResult">-</strong></div>
-      <div class="result-line total"><span>Ориентировъчна цена:</span><strong id="embTotalResult">-</strong></div>
+      <div class="result-line"><span>Цена по бодове за 1 бр.:</span><strong id="embStitchPriceResult">-</strong></div>
+      <div class="result-line" id="embMinimumRow"><span>Минимум за 1 бр.:</span><strong id="embMinimumResult">-</strong></div>
+      <div class="result-line"><span>Реална цена:</span><strong id="embStitchTotalResult">-</strong></div>
+      <div class="result-line total"><span>Крайна ориентировъчна цена:</span><strong id="embTotalResult">-</strong></div>
       <button class="copy" type="submit" id="embEmail" data-order-type="emb">Изпрати заявка</button>
       <button class="copy" type="button" id="embCopy">Копирай оферта</button>
       <div id="embCopyStatus" class="copy-status"></div>
@@ -443,8 +445,12 @@
     <input type="text" name="fi-text-service">
     <input type="text" name="fi-text-print_size">
     <input type="text" name="fi-text-quantity">
+    <input type="text" name="fi-text-rate_per_1000">
     <input type="text" name="fi-text-stitch_price">
+    <input type="text" name="fi-text-minimum_price">
     <input type="text" name="fi-text-price_one">
+    <input type="text" name="fi-text-stitch_total">
+    <input type="text" name="fi-text-minimum_total">
     <input type="text" name="fi-text-total_price">
     <input type="text" name="fi-text-uploaded_file_name">
     <input type="text" name="fi-text-stitches">
@@ -816,28 +822,46 @@ function calculateEmbroidery() {
   }
 
   const priceBeforeMinimum = (embStitchCount / 1000) * EMB_PRICE_PER_THOUSAND;
-  const priceOne = Math.max(priceBeforeMinimum, EMB_MIN_PRICE);
-  const total = priceOne * qty;
+  const minimumOne = EMB_MIN_PRICE;
+  const stitchTotal = priceBeforeMinimum * qty;
+  const minimumApplies = qty === 1 && priceBeforeMinimum < minimumOne;
+  const total = minimumApplies ? minimumOne : stitchTotal;
   const sizeText = formatEmbroiderySize(w, h);
+  const rateText = EMB_PRICE_PER_THOUSAND.toFixed(2) + " €";
   const stitchPriceText = priceBeforeMinimum.toFixed(2) + " €";
-  const priceOneText = priceOne.toFixed(2) + " €";
+  const minimumText = minimumOne.toFixed(2) + " €";
+  const stitchTotalText = stitchTotal.toFixed(2) + " €";
   const totalText = total.toFixed(2) + " €";
   const fileName = embUpload.files[0] ? embUpload.files[0].name : "";
   const dstFileName = embDstUpload.files[0] ? embDstUpload.files[0].name : "";
 
   document.getElementById("embSizeResult").innerText = sizeText;
   document.getElementById("embStitchesResult").innerText = formatInteger(embStitchCount);
+  document.getElementById("embRateResult").innerText = rateText;
   document.getElementById("embQtyResult").innerText = qty + " бр.";
   document.getElementById("embStitchPriceResult").innerText = stitchPriceText;
-  document.getElementById("embPriceOneResult").innerText = priceOneText;
+  document.getElementById("embStitchPriceResult").closest(".result-line").style.display = qty === 1 ? "flex" : "none";
+  document.getElementById("embMinimumResult").innerText = minimumText;
+  document.getElementById("embMinimumRow").style.display = minimumApplies ? "flex" : "none";
+  document.getElementById("embStitchTotalResult").innerText = stitchTotalText;
   document.getElementById("embTotalResult").innerText = totalText;
-  lastQuotes.emb = buildQuoteText("Бродерия", sizeText, qty, priceOneText, totalText, dstFileName || fileName, formatInteger(embStitchCount), stitchPriceText);
+  lastQuotes.emb = buildQuoteText("Бродерия", sizeText, qty, stitchPriceText, totalText, dstFileName || fileName, formatInteger(embStitchCount), {
+    rate: rateText,
+    stitchPrice: stitchPriceText,
+    minimumOne: minimumApplies ? minimumText : "",
+    stitchTotal: stitchTotalText,
+    showUnitPrice: qty === 1
+  });
   lastOrders.emb = {
     service: "Бродерия",
     size: sizeText,
     qty,
+    rate: rateText,
     stitchPrice: stitchPriceText,
-    priceOne: priceOneText,
+    minimumOne: minimumApplies ? minimumText : "",
+    priceOne: qty === 1 ? stitchPriceText : "",
+    stitchTotal: stitchTotalText,
+    minimumTotal: "",
     total: totalText,
     fileName: dstFileName || fileName,
     stitches: formatInteger(embStitchCount)
@@ -849,23 +873,33 @@ function calculateEmbroidery() {
   result.style.display = "block";
 }
 
-function buildQuoteText(service, size, qty, priceOne, total, fileName, stitches, stitchPrice) {
+function buildQuoteText(service, size, qty, priceOne, total, fileName, stitches, embroideryDetails) {
   const lines = [
     "BrodiPrint ориентировъчна оферта",
     "Услуга: " + service,
     "Размер: " + size,
     "Количество: " + qty + " бр.",
-    "Цена за 1 бр.: " + priceOne + " без ДДС",
     "Крайна цена: " + total + " без ДДС",
     "Файл: " + (fileName || "не е качен")
   ];
+
+  if (!embroideryDetails || embroideryDetails.showUnitPrice) {
+    lines.splice(4, 0, "Цена за 1 бр.: " + priceOne + " без ДДС");
+  }
 
   if (stitches) {
     lines.push("Бодове: " + stitches);
   }
 
-  if (stitchPrice) {
-    lines.push("Цена по бодове: " + stitchPrice + " без ДДС");
+  if (embroideryDetails) {
+    lines.push("Цена за 1000 бода: " + embroideryDetails.rate + " без ДДС");
+    if (embroideryDetails.showUnitPrice) {
+      lines.push("Цена по бодове за 1 бр.: " + embroideryDetails.stitchPrice + " без ДДС");
+    }
+    if (embroideryDetails.minimumOne) {
+      lines.push("Минимум за 1 бр.: " + embroideryDetails.minimumOne + " без ДДС");
+    }
+    lines.push("Общо по бодове: " + embroideryDetails.stitchTotal + " без ДДС");
   }
 
   lines.push("Цената е ориентировъчна и е без ДДС. Финална цена се потвърждава след преглед на файла.");
@@ -938,8 +972,12 @@ function prepareOrderSubmit(event) {
   form.elements["fi-text-service"].value = order.service;
   form.elements["fi-text-print_size"].value = order.size;
   form.elements["fi-text-quantity"].value = order.qty + " бр.";
+  form.elements["fi-text-rate_per_1000"].value = order.rate ? order.rate + " без ДДС" : "";
   form.elements["fi-text-stitch_price"].value = order.stitchPrice ? order.stitchPrice + " без ДДС" : "";
-  form.elements["fi-text-price_one"].value = order.priceOne + " без ДДС";
+  form.elements["fi-text-minimum_price"].value = order.minimumOne ? order.minimumOne + " без ДДС" : "";
+  form.elements["fi-text-price_one"].value = order.priceOne ? order.priceOne + " без ДДС" : "";
+  form.elements["fi-text-stitch_total"].value = order.stitchTotal ? order.stitchTotal + " без ДДС" : "";
+  form.elements["fi-text-minimum_total"].value = order.minimumTotal ? order.minimumTotal + " без ДДС" : "";
   form.elements["fi-text-total_price"].value = order.total + " без ДДС";
   form.elements["fi-text-uploaded_file_name"].value = order.fileName || "не е качен";
   form.elements["fi-text-stitches"].value = order.stitches || "";
