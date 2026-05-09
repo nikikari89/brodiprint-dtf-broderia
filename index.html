@@ -949,7 +949,7 @@ function isSupabaseConfigured() {
 function makeSafePathPart(value) {
   return (value || "client")
     .toLowerCase()
-    .replace(/[^a-z0-9а-яё]+/gi, "-")
+    .replace(/[^a-z0-9]+/gi, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 60) || "client";
 }
