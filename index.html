@@ -398,8 +398,23 @@
       Автоматично запази пропорцията
     </label>
 
-    <label for="embQty">Количество</label>
-    <input id="embQty" type="number" inputmode="numeric" value="1" min="1">
+    <label for="embComplexity">Сложност на бродерията</label>
+    <select id="embComplexity">
+      <option value="35">Лесна — надпис / просто лого</option>
+      <option value="50" selected>Средна — стандартно фирмено лого</option>
+      <option value="70">Сложна — много детайли / плътно запълване</option>
+    </select>
+
+    <div class="row">
+      <div>
+        <label for="embRate">Цена за 1000 бода (€)</label>
+        <input id="embRate" type="number" inputmode="decimal" value="0.80" step="0.01" min="0">
+      </div>
+      <div>
+        <label for="embQty">Количество</label>
+        <input id="embQty" type="number" inputmode="numeric" value="1" min="1">
+      </div>
+    </div>
 
     <div class="row">
       <div>
@@ -421,7 +436,9 @@
 
     <div id="embResult" class="result">
       <div class="result-line"><span>Размер:</span><strong id="embSizeResult">-</strong></div>
-      <div class="result-line"><span>Бодове:</span><strong id="embStitchesResult">-</strong></div>
+      <div class="result-line"><span>Метод:</span><strong id="embMethodResult">-</strong></div>
+      <div class="result-line" id="embAreaRow"><span>Площ:</span><strong id="embAreaResult">-</strong></div>
+      <div class="result-line"><span id="embStitchesLabel">Бодове:</span><strong id="embStitchesResult">-</strong></div>
       <div class="result-line"><span>Цена за 1000 бода:</span><strong id="embRateResult">-</strong></div>
       <div class="result-line"><span>Количество:</span><strong id="embQtyResult">-</strong></div>
       <div class="result-line"><span>Цена по бодове за 1 бр.:</span><strong id="embStitchPriceResult">-</strong></div>
@@ -815,32 +832,44 @@ function calculateEmbroidery() {
   const w = parsePositiveNumber(embWidth.value);
   const h = parsePositiveNumber(embHeight.value);
   const qty = parsePositiveInteger(document.getElementById("embQty").value);
+  const density = parsePositiveNumber(document.getElementById("embComplexity").value);
+  const pricePerThousand = parseNonNegativeNumber(document.getElementById("embRate").value) || EMB_PRICE_PER_THOUSAND;
 
   const result = document.getElementById("embResult");
   const error = document.getElementById("embError");
 
-  if (!qty || !embStitchCount) {
+  const hasDstStitches = !!embStitchCount;
+  const canEstimateFromImage = !hasDstStitches && embLoaded && w && h && density;
+  const effectiveStitches = hasDstStitches ? embStitchCount : (canEstimateFromImage ? Math.round(w * h * density) : null);
+
+  if (!qty || !effectiveStitches) {
     result.style.display = "none";
     error.style.display = "block";
     return;
   }
 
-  const priceBeforeMinimum = (embStitchCount / 1000) * EMB_PRICE_PER_THOUSAND;
+  const area = w && h ? w * h : null;
+  const priceBeforeMinimum = (effectiveStitches / 1000) * pricePerThousand;
   const minimumOne = EMB_MIN_PRICE;
   const stitchTotal = priceBeforeMinimum * qty;
   const minimumApplies = qty === 1 && priceBeforeMinimum < minimumOne;
   const total = minimumApplies ? minimumOne : stitchTotal;
   const sizeText = formatEmbroiderySize(w, h);
-  const rateText = EMB_PRICE_PER_THOUSAND.toFixed(2) + " €";
+  const rateText = pricePerThousand.toFixed(2) + " €";
   const stitchPriceText = priceBeforeMinimum.toFixed(2) + " €";
   const minimumText = minimumOne.toFixed(2) + " €";
   const stitchTotalText = stitchTotal.toFixed(2) + " €";
   const totalText = total.toFixed(2) + " €";
   const fileName = embUpload.files[0] ? embUpload.files[0].name : "";
   const dstFileName = embDstUpload.files[0] ? embDstUpload.files[0].name : "";
+  const methodText = hasDstStitches ? "Реални бодове от DST файл" : "Приблизителни бримки от изображение";
 
   document.getElementById("embSizeResult").innerText = sizeText;
-  document.getElementById("embStitchesResult").innerText = formatInteger(embStitchCount);
+  document.getElementById("embMethodResult").innerText = methodText;
+  document.getElementById("embAreaRow").style.display = area ? "flex" : "none";
+  document.getElementById("embAreaResult").innerText = area ? area.toFixed(1) + " кв.см" : "-";
+  document.getElementById("embStitchesLabel").innerText = hasDstStitches ? "Бодове:" : "Приблизителни бримки:";
+  document.getElementById("embStitchesResult").innerText = formatInteger(effectiveStitches);
   document.getElementById("embRateResult").innerText = rateText;
   document.getElementById("embQtyResult").innerText = qty + " бр.";
   document.getElementById("embStitchPriceResult").innerText = stitchPriceText;
@@ -849,12 +878,14 @@ function calculateEmbroidery() {
   document.getElementById("embMinimumRow").style.display = minimumApplies ? "flex" : "none";
   document.getElementById("embStitchTotalResult").innerText = stitchTotalText;
   document.getElementById("embTotalResult").innerText = totalText;
-  lastQuotes.emb = buildQuoteText("Бродерия", sizeText, qty, stitchPriceText, totalText, dstFileName || fileName, formatInteger(embStitchCount), {
+  lastQuotes.emb = buildQuoteText("Бродерия", sizeText, qty, stitchPriceText, totalText, dstFileName || fileName, formatInteger(effectiveStitches), {
     rate: rateText,
     stitchPrice: stitchPriceText,
     minimumOne: minimumApplies ? minimumText : "",
     stitchTotal: stitchTotalText,
-    showUnitPrice: qty === 1
+    showUnitPrice: qty === 1,
+    method: methodText,
+    area: area ? area.toFixed(1) + " кв.см" : ""
   });
   lastOrders.emb = {
     service: "Бродерия",
@@ -868,7 +899,7 @@ function calculateEmbroidery() {
     minimumTotal: "",
     total: totalText,
     fileName: dstFileName || fileName,
-    stitches: formatInteger(embStitchCount)
+    stitches: formatInteger(effectiveStitches)
   };
   document.getElementById("embCopyStatus").style.display = "none";
   document.getElementById("embOrderError").style.display = "none";
@@ -896,6 +927,10 @@ function buildQuoteText(service, size, qty, priceOne, total, fileName, stitches,
   }
 
   if (embroideryDetails) {
+    lines.push("Метод: " + embroideryDetails.method);
+    if (embroideryDetails.area) {
+      lines.push("Площ: " + embroideryDetails.area);
+    }
     lines.push("Цена за 1000 бода: " + embroideryDetails.rate + " без ДДС");
     if (embroideryDetails.showUnitPrice) {
       lines.push("Цена по бодове за 1 бр.: " + embroideryDetails.stitchPrice + " без ДДС");
