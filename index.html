@@ -1002,23 +1002,27 @@ async function saveOrderToSupabase(type, order, quote, details) {
   let dtfFilePath = "";
   let dstFilePath = "";
   let embFilePath = "";
+  const storageErrors = [];
 
   try {
     dtfFilePath = dtfFile ? await uploadSupabaseFile(dtfFile, basePath + "/dtf-" + makeSafeFileName(dtfFile.name)) : "";
   } catch (error) {
     console.error("DTF file upload failed", error);
+    storageErrors.push("DTF файл: " + error.message);
   }
 
   try {
     dstFilePath = dstFile ? await uploadSupabaseFile(dstFile, basePath + "/dst-" + makeSafeFileName(dstFile.name)) : "";
   } catch (error) {
     console.error("DST file upload failed", error);
+    storageErrors.push("DST файл: " + error.message);
   }
 
   try {
     embFilePath = embFile ? await uploadSupabaseFile(embFile, basePath + "/logo-" + makeSafeFileName(embFile.name)) : "";
   } catch (error) {
     console.error("Embroidery file upload failed", error);
+    storageErrors.push("Лого файл: " + error.message);
   }
 
   const response = await fetch(SUPABASE_URL + "/rest/v1/orders", {
@@ -1048,7 +1052,7 @@ async function saveOrderToSupabase(type, order, quote, details) {
       dtf_file_path: dtfFilePath,
       dst_file_path: dstFilePath,
       embroidery_file_path: embFilePath,
-      quote
+      quote: storageErrors.length ? quote + "\n\nStorage грешка:\n" + storageErrors.join("\n") : quote
     })
   });
 
