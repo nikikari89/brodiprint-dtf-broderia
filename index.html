@@ -354,6 +354,8 @@
     <div id="dtfResult" class="result">
       <div class="result-line"><span>Тип печат:</span><strong id="dtfTypeResult">-</strong></div>
       <div class="result-line"><span>Размер:</span><strong id="dtfSizeResult">-</strong></div>
+      <div class="result-line"><span>Площ на печат:</span><strong id="dtfAreaResult">-</strong></div>
+      <div class="result-line"><span>База DTF:</span><strong id="dtfRateResult">-</strong></div>
       <div class="result-line"><span>Количество:</span><strong id="dtfQtyResult">-</strong></div>
       <div class="result-line"><span>Цена за 1 бр.:</span><strong id="dtfPriceOneResult">-</strong></div>
       <div class="result-line total"><span>Крайна цена:</span><strong id="dtfTotalResult">-</strong></div>
@@ -505,14 +507,15 @@ if (new URLSearchParams(window.location.search).get("sent") === "1") {
   window.history.replaceState({}, document.title, window.location.pathname);
 }
 
-const DTF_PRICES = {
-  "small-onecolor": 0.96,
-  "small-multicolor": 1.56,
-  "large-onecolor": 1.56,
-  "large-multicolor": 2.16,
-  "large-30x30": 2.76,
-  "jumpsuit": 1.56,
-  "hat": 1.56
+const DTF_PRICE_PER_M2 = 24;
+const DTF_TYPES = {
+  "small-onecolor": { min: 1.80, handling: 0.70 },
+  "small-multicolor": { min: 2.20, handling: 0.90 },
+  "large-onecolor": { min: 3.50, handling: 1.50 },
+  "large-multicolor": { min: 4.20, handling: 1.80 },
+  "large-30x30": { min: 4.50, handling: 2.00 },
+  "jumpsuit": { min: 4.80, handling: 2.30 },
+  "hat": { min: 3.00, handling: 1.80 }
 };
 
 const EMB_PRICE_PER_THOUSAND = 0.80;
@@ -619,25 +622,32 @@ function calculateDTF() {
   const h = parsePositiveNumber(dtfHeight.value);
   const selectedType = dtfType.value;
   const selectedTypeText = dtfType.selectedOptions[0].textContent;
-  const price = DTF_PRICES[selectedType];
+  const dtfTypeSettings = DTF_TYPES[selectedType];
   const qty = parsePositiveInteger(document.getElementById("dtfQty").value);
   const result = document.getElementById("dtfResult");
   const error = document.getElementById("dtfError");
 
-  if (!price || !qty) {
+  if (!dtfTypeSettings || !qty) {
     result.style.display = "none";
     error.style.display = "block";
     return;
   }
 
+  const areaM2 = w && h ? (w * h) / 10000 : 0;
+  const areaPrice = areaM2 * DTF_PRICE_PER_M2 + dtfTypeSettings.handling;
+  const price = Math.max(areaPrice, dtfTypeSettings.min);
   const total = price * qty;
   const sizeText = w && h ? w.toFixed(1) + " × " + h.toFixed(1) + " см" : "-";
+  const areaText = areaM2 ? areaM2.toFixed(4) + " м²" : "по минимална цена";
+  const rateText = DTF_PRICE_PER_M2.toFixed(2) + " €/м² + труд";
   const priceOneText = price.toFixed(2) + " €";
   const totalText = total.toFixed(2) + " €";
   const fileName = dtfUpload.files[0] ? dtfUpload.files[0].name : "";
 
   document.getElementById("dtfTypeResult").innerText = selectedTypeText;
   document.getElementById("dtfSizeResult").innerText = sizeText;
+  document.getElementById("dtfAreaResult").innerText = areaText;
+  document.getElementById("dtfRateResult").innerText = rateText;
   document.getElementById("dtfQtyResult").innerText = qty + " бр.";
   document.getElementById("dtfPriceOneResult").innerText = priceOneText;
   document.getElementById("dtfTotalResult").innerText = totalText;
