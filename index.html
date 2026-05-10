@@ -81,6 +81,52 @@
       border-color: #111;
     }
 
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .service-choice {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin: 8px 0 4px;
+    }
+
+    .service-option {
+      width: 100%;
+      border: 1px solid #ddd;
+      border-radius: 14px;
+      padding: 13px 10px;
+      background: #f5f5f5;
+      color: #111;
+      font-weight: 800;
+      cursor: pointer;
+      text-align: center;
+      transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+    }
+
+    .service-option span {
+      display: block;
+      margin-top: 4px;
+      font-size: 12px;
+      font-weight: 700;
+      opacity: 0.72;
+    }
+
+    .service-option.active {
+      background: #111;
+      color: #fff;
+      border-color: #111;
+    }
+
     .section[hidden] { display: none; }
 
     .upload-box {
@@ -337,6 +383,23 @@
       Автоматично запази пропорцията
     </label>
 
+    <label id="dtfServiceModeLabel">Начин на поръчка</label>
+    <select id="dtfServiceMode" class="visually-hidden" aria-labelledby="dtfServiceModeLabel">
+      <option value="applied" selected>DTF печат + поставяне върху дреха</option>
+      <option value="print-only">Само DTF печат без труд</option>
+    </select>
+    <div class="service-choice" aria-label="Начин на поръчка">
+      <button class="service-option active" type="button" data-dtf-service="applied" aria-pressed="true">
+        С поставяне
+        <span>DTF + труд</span>
+      </button>
+      <button class="service-option" type="button" data-dtf-service="print-only" aria-pressed="false">
+        Без труд
+        <span>само DTF печат</span>
+      </button>
+    </div>
+    <div class="image-info">При “Само DTF печат без труд” се смята само отпечатването на фолиото по квадратен метър, без поставяне върху дреха.</div>
+
     <label for="dtfType">Тип DTF печат</label>
     <select id="dtfType">
       <option value="small-onecolor">Малко лого - едноцветно</option>
@@ -372,7 +435,8 @@
     <div id="dtfResult" class="result">
       <div class="result-line"><span>Тип печат:</span><strong id="dtfTypeResult">-</strong></div>
       <div class="result-line"><span>Размер:</span><strong id="dtfSizeResult">-</strong></div>
-      <div class="result-line"><span>Площ на печат:</span><strong id="dtfAreaResult">-</strong></div>
+      <div class="result-line"><span>Площ за 1 бр.:</span><strong id="dtfAreaResult">-</strong></div>
+      <div class="result-line"><span>Обща площ:</span><strong id="dtfTotalAreaResult">-</strong></div>
       <div class="result-line"><span>База DTF:</span><strong id="dtfRateResult">-</strong></div>
       <div class="result-line"><span>Количество:</span><strong id="dtfQtyResult">-</strong></div>
       <div class="result-line"><span>Цена за 1 бр.:</span><strong id="dtfPriceOneResult">-</strong></div>
@@ -527,12 +591,24 @@ document.getElementById("dtfRemoveFile").addEventListener("click", clearDtfFile)
 document.getElementById("embRemoveDstFile").addEventListener("click", clearEmbDstFile);
 document.getElementById("embRemoveImageFile").addEventListener("click", clearEmbImageFile);
 
+function autoCalculateDTF() {
+  calculateDTF();
+}
+
+function autoCalculateEmbroidery() {
+  if (embStitchCount || embLoaded || document.getElementById("embResult").style.display === "block") {
+    calculateEmbroidery();
+  }
+}
+
 if (new URLSearchParams(window.location.search).get("sent") === "1") {
   document.getElementById("submitSuccess").style.display = "block";
   window.history.replaceState({}, document.title, window.location.pathname);
 }
 
 const DTF_PRICE_PER_M2 = 30;
+const DTF_PRINT_ONLY_PRICE_PER_M2 = 19;
+const DTF_PRINT_ONLY_MIN = 1;
 const DTF_TYPES = {
   "small-onecolor": { min: 1.80, handling: 0.70 },
   "small-multicolor": { min: 2.20, handling: 0.90 },
@@ -600,6 +676,8 @@ const dtfUpload = document.getElementById("dtfImageUpload");
 const dtfPreview = document.getElementById("dtfPreview");
 const dtfWidth = document.getElementById("dtfWidth");
 const dtfHeight = document.getElementById("dtfHeight");
+const dtfServiceMode = document.getElementById("dtfServiceMode");
+const dtfServiceButtons = Array.from(document.querySelectorAll("[data-dtf-service]"));
 const dtfType = document.getElementById("dtfType");
 
 function clearDtfFile() {
@@ -631,6 +709,7 @@ dtfUpload.addEventListener("change", function() {
       dtfWidth.value = 30;
       dtfHeight.value = (30 / dtfRatio).toFixed(1);
     }
+    autoCalculateDTF();
     URL.revokeObjectURL(url);
   };
   dtfPreview.onerror = function() {
@@ -641,8 +720,30 @@ dtfUpload.addEventListener("change", function() {
   };
 });
 
-dtfWidth.addEventListener("input", function(){ dtfActiveInput = "width"; updateDTFRatio(); });
-dtfHeight.addEventListener("input", function(){ dtfActiveInput = "height"; updateDTFRatio(); });
+dtfWidth.addEventListener("input", function(){ dtfActiveInput = "width"; updateDTFRatio(); autoCalculateDTF(); });
+dtfHeight.addEventListener("input", function(){ dtfActiveInput = "height"; updateDTFRatio(); autoCalculateDTF(); });
+document.getElementById("dtfKeepRatio").addEventListener("change", autoCalculateDTF);
+document.getElementById("dtfQty").addEventListener("input", autoCalculateDTF);
+dtfServiceMode.addEventListener("change", function() {
+  updateDTFServiceButtons();
+  autoCalculateDTF();
+});
+dtfServiceButtons.forEach(function(button) {
+  button.addEventListener("click", function() {
+    dtfServiceMode.value = button.dataset.dtfService;
+    updateDTFServiceButtons();
+    autoCalculateDTF();
+  });
+});
+dtfType.addEventListener("change", autoCalculateDTF);
+
+function updateDTFServiceButtons() {
+  dtfServiceButtons.forEach(function(button) {
+    const isActive = button.dataset.dtfService === dtfServiceMode.value;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-pressed", isActive ? "true" : "false");
+  });
+}
 
 function updateDTFRatio() {
   if (!document.getElementById("dtfKeepRatio").checked || !dtfRatio) return;
@@ -657,6 +758,8 @@ function calculateDTF() {
   const h = parsePositiveNumber(dtfHeight.value);
   const selectedType = dtfType.value;
   const selectedTypeText = dtfType.selectedOptions[0].textContent;
+  const selectedMode = dtfServiceMode.value;
+  const selectedModeText = dtfServiceMode.selectedOptions[0].textContent;
   const dtfTypeSettings = DTF_TYPES[selectedType];
   const qty = parsePositiveInteger(document.getElementById("dtfQty").value);
   const result = document.getElementById("dtfResult");
@@ -669,26 +772,33 @@ function calculateDTF() {
   }
 
   const areaM2 = w && h ? (w * h) / 10000 : 0;
-  const areaPrice = areaM2 * DTF_PRICE_PER_M2 + dtfTypeSettings.handling;
-  const price = Math.max(areaPrice, dtfTypeSettings.min);
+  const areaPrice = selectedMode === "print-only"
+    ? areaM2 * DTF_PRINT_ONLY_PRICE_PER_M2
+    : areaM2 * DTF_PRICE_PER_M2 + dtfTypeSettings.handling;
+  const minimumPrice = selectedMode === "print-only" ? DTF_PRINT_ONLY_MIN : dtfTypeSettings.min;
+  const price = Math.max(areaPrice, minimumPrice);
   const total = price * qty;
   const sizeText = w && h ? w.toFixed(1) + " × " + h.toFixed(1) + " см" : "-";
   const areaText = areaM2 ? areaM2.toFixed(4) + " м²" : "по минимална цена";
-  const rateText = DTF_PRICE_PER_M2.toFixed(2) + " €/м² + труд";
+  const totalAreaText = areaM2 ? (areaM2 * qty).toFixed(4) + " м²" : "-";
+  const rateText = selectedMode === "print-only"
+    ? DTF_PRINT_ONLY_PRICE_PER_M2.toFixed(2) + " €/м² без труд"
+    : DTF_PRICE_PER_M2.toFixed(2) + " €/м² + труд";
   const priceOneText = price.toFixed(2) + " €";
   const totalText = total.toFixed(2) + " €";
   const fileName = dtfUpload.files[0] ? dtfUpload.files[0].name : "";
 
-  document.getElementById("dtfTypeResult").innerText = selectedTypeText;
+  document.getElementById("dtfTypeResult").innerText = selectedModeText + " - " + selectedTypeText;
   document.getElementById("dtfSizeResult").innerText = sizeText;
   document.getElementById("dtfAreaResult").innerText = areaText;
+  document.getElementById("dtfTotalAreaResult").innerText = totalAreaText;
   document.getElementById("dtfRateResult").innerText = rateText;
   document.getElementById("dtfQtyResult").innerText = qty + " бр.";
   document.getElementById("dtfPriceOneResult").innerText = priceOneText;
   document.getElementById("dtfTotalResult").innerText = totalText;
-  lastQuotes.dtf = buildQuoteText("DTF печат - " + selectedTypeText, sizeText, qty, priceOneText, totalText, fileName);
+  lastQuotes.dtf = buildQuoteText(selectedModeText + " - " + selectedTypeText, sizeText, qty, priceOneText, totalText, fileName);
   lastOrders.dtf = {
-    service: "DTF печат - " + selectedTypeText,
+    service: selectedModeText + " - " + selectedTypeText,
     size: sizeText,
     qty,
     priceOne: priceOneText,
@@ -770,6 +880,7 @@ embDstUpload.addEventListener("change", function() {
         : "";
 
       embDstInfo.textContent = "DST файл: " + file.name + " | Бодове: " + formatInteger(embStitchCount) + sizeInfo;
+      autoCalculateEmbroidery();
     })
     .catch(() => {
       embStitchCount = null;
@@ -872,6 +983,7 @@ embUpload.addEventListener("change", function() {
       embWidth.value = 10;
       embHeight.value = (10 / embRatio).toFixed(1);
     }
+    autoCalculateEmbroidery();
     URL.revokeObjectURL(url);
   };
   embPreview.onerror = function() {
@@ -882,8 +994,12 @@ embUpload.addEventListener("change", function() {
   };
 });
 
-embWidth.addEventListener("input", function(){ embActiveInput = "width"; updateEmbRatio(); });
-embHeight.addEventListener("input", function(){ embActiveInput = "height"; updateEmbRatio(); });
+embWidth.addEventListener("input", function(){ embActiveInput = "width"; updateEmbRatio(); autoCalculateEmbroidery(); });
+embHeight.addEventListener("input", function(){ embActiveInput = "height"; updateEmbRatio(); autoCalculateEmbroidery(); });
+document.getElementById("embKeepRatio").addEventListener("change", autoCalculateEmbroidery);
+document.getElementById("embQty").addEventListener("input", autoCalculateEmbroidery);
+document.getElementById("embComplexity").addEventListener("change", autoCalculateEmbroidery);
+document.getElementById("embRate").addEventListener("input", autoCalculateEmbroidery);
 
 function updateEmbRatio() {
   if (!document.getElementById("embKeepRatio").checked || !embRatio) return;
