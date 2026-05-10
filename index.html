@@ -505,16 +505,14 @@
     </div>
     <div class="image-info">При “Само DTF печат без труд” се смята само отпечатването на фолиото по квадратен метър, без поставяне върху дреха.</div>
 
-    <label for="dtfType">Тип DTF печат</label>
-    <select id="dtfType">
-      <option value="small-onecolor">Малко лого - едноцветно</option>
-      <option value="small-multicolor">Малко лого - многоцветно</option>
-      <option value="large-onecolor">Голямо лого - едноцветно</option>
-      <option value="large-multicolor">Голямо лого - многоцветно</option>
-      <option value="large-30x30">Голямо лого - 30 × 30 см</option>
-      <option value="jumpsuit">Печат гащеризон</option>
-      <option value="hat">Печат шапка</option>
-    </select>
+    <div id="dtfTypeWrap">
+      <label for="dtfType">Вид поставяне</label>
+      <select id="dtfType">
+        <option value="onecolor">Едноцветно лого</option>
+        <option value="multicolor">Многоцветно лого</option>
+        <option value="workwear">Работно облекло / сложна позиция</option>
+      </select>
+    </div>
 
     <label for="dtfQty">Количество</label>
     <input id="dtfQty" type="number" inputmode="numeric" value="1" min="1">
@@ -534,7 +532,7 @@
     <input id="dtfClientEmail" type="email" autocomplete="email" placeholder="Имейл за отговор">
 
     <button class="calc" type="button" id="dtfCalculate">Изчисли DTF цена</button>
-    <div id="dtfError" class="error">Моля, изберете тип DTF печат и въведете коректно количество.</div>
+    <div id="dtfError" class="error">Моля, изберете вид поставяне и въведете коректно количество.</div>
     <div id="dtfOrderError" class="error">Моля, въведете име и поне телефон или имейл, за да изпратите заявката.</div>
 
     <div id="dtfResult" class="result">
@@ -723,13 +721,9 @@ const DTF_PRICE_PER_M2 = 30;
 const DTF_PRINT_ONLY_PRICE_PER_M2 = 19;
 const DTF_PRINT_ONLY_MIN = 1;
 const DTF_TYPES = {
-  "small-onecolor": { min: 1.80, handling: 0.70 },
-  "small-multicolor": { min: 2.20, handling: 0.90 },
-  "large-onecolor": { min: 3.50, handling: 1.50 },
-  "large-multicolor": { min: 4.20, handling: 1.80 },
-  "large-30x30": { min: 4.50, handling: 2.00 },
-  "jumpsuit": { min: 4.80, handling: 2.30 },
-  "hat": { min: 3.00, handling: 1.80 }
+  onecolor: { min: 2.00, handling: 0.80 },
+  multicolor: { min: 2.50, handling: 1.10 },
+  workwear: { min: 3.50, handling: 1.80 }
 };
 
 const EMB_PRICE_PER_THOUSAND = 0.80;
@@ -859,6 +853,7 @@ function updateDTFServiceButtons() {
     button.classList.toggle("active", isActive);
     button.setAttribute("aria-pressed", isActive ? "true" : "false");
   });
+  document.getElementById("dtfTypeWrap").hidden = dtfServiceMode.value === "print-only";
 }
 
 function updateDTFRatio() {
