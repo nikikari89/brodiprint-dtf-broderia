@@ -723,7 +723,10 @@ dtfUpload.addEventListener("change", function() {
 dtfWidth.addEventListener("input", function(){ dtfActiveInput = "width"; updateDTFRatio(); autoCalculateDTF(); });
 dtfHeight.addEventListener("input", function(){ dtfActiveInput = "height"; updateDTFRatio(); autoCalculateDTF(); });
 document.getElementById("dtfKeepRatio").addEventListener("change", autoCalculateDTF);
-document.getElementById("dtfQty").addEventListener("input", autoCalculateDTF);
+const dtfQtyInput = document.getElementById("dtfQty");
+["input", "change", "keyup", "blur"].forEach(function(eventName) {
+  dtfQtyInput.addEventListener(eventName, autoCalculateDTF);
+});
 dtfServiceMode.addEventListener("change", function() {
   updateDTFServiceButtons();
   autoCalculateDTF();
@@ -997,7 +1000,10 @@ embUpload.addEventListener("change", function() {
 embWidth.addEventListener("input", function(){ embActiveInput = "width"; updateEmbRatio(); autoCalculateEmbroidery(); });
 embHeight.addEventListener("input", function(){ embActiveInput = "height"; updateEmbRatio(); autoCalculateEmbroidery(); });
 document.getElementById("embKeepRatio").addEventListener("change", autoCalculateEmbroidery);
-document.getElementById("embQty").addEventListener("input", autoCalculateEmbroidery);
+const embQtyInput = document.getElementById("embQty");
+["input", "change", "keyup", "blur"].forEach(function(eventName) {
+  embQtyInput.addEventListener(eventName, autoCalculateEmbroidery);
+});
 document.getElementById("embComplexity").addEventListener("change", autoCalculateEmbroidery);
 document.getElementById("embRate").addEventListener("input", autoCalculateEmbroidery);
 
