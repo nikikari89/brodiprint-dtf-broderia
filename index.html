@@ -97,6 +97,23 @@
       width: 100%;
     }
 
+    .remove-file {
+      display: none;
+      width: auto;
+      margin: 12px auto 0;
+      padding: 8px 14px;
+      border: 1px solid #d8d8d8;
+      border-radius: 10px;
+      background: #fff;
+      color: #111;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .remove-file:hover {
+      background: #f1f1f1;
+    }
+
     .preview-wrap {
       display: none;
       margin: 16px 0;
@@ -296,6 +313,7 @@
       <strong>Качете изображение за DTF печат</strong>
       <div class="image-info">По желание. Финалната цена се потвърждава след преглед на файла.</div>
       <input id="dtfImageUpload" name="fi-file-dtf_file" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml">
+      <button class="remove-file" type="button" id="dtfRemoveFile">Изтрий качения файл</button>
     </div>
 
     <div id="dtfPreviewWrap" class="preview-wrap">
@@ -359,6 +377,7 @@
       <div class="result-line"><span>Количество:</span><strong id="dtfQtyResult">-</strong></div>
       <div class="result-line"><span>Цена за 1 бр.:</span><strong id="dtfPriceOneResult">-</strong></div>
       <div class="result-line total"><span>Крайна цена:</span><strong id="dtfTotalResult">-</strong></div>
+      <div class="note">Всички цени са без ДДС.</div>
       <button class="copy" type="submit" id="dtfEmail" data-order-type="dtf">Изпрати заявка</button>
       <button class="copy" type="button" id="dtfCopy">Копирай оферта</button>
       <div id="dtfCopyStatus" class="copy-status"></div>
@@ -370,6 +389,7 @@
       <strong>Качете DST файл за бродерия</strong>
       <div class="image-info">Задължително за автоматично изчисляване на бодовете и цената.</div>
       <input id="embDstUpload" name="fi-file-dst_file" type="file" accept=".dst,application/octet-stream">
+      <button class="remove-file" type="button" id="embRemoveDstFile">Изтрий DST файла</button>
       <div id="embDstInfo" class="image-info"></div>
     </div>
 
@@ -377,6 +397,7 @@
       <strong>Качете лого / изображение</strong>
       <div class="image-info">По желание. Финалната цена се потвърждава след преглед на файла.</div>
       <input id="embImageUpload" name="fi-file-emb_file" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml">
+      <button class="remove-file" type="button" id="embRemoveImageFile">Изтрий качения файл</button>
     </div>
 
     <div id="embPreviewWrap" class="preview-wrap">
@@ -447,6 +468,7 @@
       <div class="result-line" id="embMinimumRow"><span>Минимум за 1 бр.:</span><strong id="embMinimumResult">-</strong></div>
       <div class="result-line"><span>Реална цена:</span><strong id="embStitchTotalResult">-</strong></div>
       <div class="result-line total"><span>Крайна ориентировъчна цена:</span><strong id="embTotalResult">-</strong></div>
+      <div class="note">Всички цени са без ДДС.</div>
       <button class="copy" type="submit" id="embEmail" data-order-type="emb">Изпрати заявка</button>
       <button class="copy" type="button" id="embCopy">Копирай оферта</button>
       <div id="embCopyStatus" class="copy-status"></div>
@@ -454,7 +476,7 @@
   </div>
 
   <div class="note">
-    Калкулаторите са ориентировъчни. Крайна цена се потвърждава след проверка на файла.
+    Калкулаторите са ориентировъчни. Всички цени са без ДДС. Крайна цена се потвърждава след проверка на файла.
   </div>
 
   <div style="display: none;">
@@ -501,13 +523,16 @@ document.getElementById("embCalculate").addEventListener("click", calculateEmbro
 document.getElementById("dtfCopy").addEventListener("click", () => copyQuote("dtf"));
 document.getElementById("embCopy").addEventListener("click", () => copyQuote("emb"));
 document.getElementById("brodiprintOrderForm").addEventListener("submit", prepareOrderSubmit);
+document.getElementById("dtfRemoveFile").addEventListener("click", clearDtfFile);
+document.getElementById("embRemoveDstFile").addEventListener("click", clearEmbDstFile);
+document.getElementById("embRemoveImageFile").addEventListener("click", clearEmbImageFile);
 
 if (new URLSearchParams(window.location.search).get("sent") === "1") {
   document.getElementById("submitSuccess").style.display = "block";
   window.history.replaceState({}, document.title, window.location.pathname);
 }
 
-const DTF_PRICE_PER_M2 = 24;
+const DTF_PRICE_PER_M2 = 30;
 const DTF_TYPES = {
   "small-onecolor": { min: 1.80, handling: 0.70 },
   "small-multicolor": { min: 2.20, handling: 0.90 },
@@ -577,14 +602,24 @@ const dtfWidth = document.getElementById("dtfWidth");
 const dtfHeight = document.getElementById("dtfHeight");
 const dtfType = document.getElementById("dtfType");
 
+function clearDtfFile() {
+  dtfUpload.value = "";
+  dtfLoaded = false;
+  dtfRatio = null;
+  resetImageState(dtfPreview, "dtfPreviewWrap", "dtfImageInfo");
+  document.getElementById("dtfRemoveFile").style.display = "none";
+  document.getElementById("dtfResult").style.display = "none";
+  lastOrders.dtf = null;
+  lastQuotes.dtf = "";
+}
+
 dtfUpload.addEventListener("change", function() {
   const file = this.files[0];
   if (!file) {
-    dtfLoaded = false;
-    dtfRatio = null;
-    resetImageState(dtfPreview, "dtfPreviewWrap", "dtfImageInfo");
+    clearDtfFile();
     return;
   }
+  document.getElementById("dtfRemoveFile").style.display = "inline-block";
   const url = URL.createObjectURL(file);
   dtfPreview.src = url;
   dtfPreview.onload = function() {
@@ -674,13 +709,41 @@ const embPreview = document.getElementById("embPreview");
 const embWidth = document.getElementById("embWidth");
 const embHeight = document.getElementById("embHeight");
 
+function resetEmbOrderState() {
+  document.getElementById("embResult").style.display = "none";
+  lastOrders.emb = null;
+  lastQuotes.emb = "";
+}
+
+function clearEmbDstFile() {
+  embDstUpload.value = "";
+  embStitchCount = null;
+  embDstSize = null;
+  embDstInfo.textContent = "";
+  document.getElementById("embRemoveDstFile").style.display = "none";
+  resetEmbOrderState();
+}
+
+function clearEmbImageFile() {
+  embUpload.value = "";
+  embLoaded = false;
+  if (!embDstSize) embRatio = null;
+  resetImageState(embPreview, "embPreviewWrap", "embImageInfo");
+  document.getElementById("embRemoveImageFile").style.display = "none";
+  resetEmbOrderState();
+}
+
 embDstUpload.addEventListener("change", function() {
   const file = this.files[0];
   embStitchCount = null;
   embDstSize = null;
   embDstInfo.textContent = "";
 
-  if (!file) return;
+  if (!file) {
+    clearEmbDstFile();
+    return;
+  }
+  document.getElementById("embRemoveDstFile").style.display = "inline-block";
 
   if (!file.name.toLowerCase().endsWith(".dst")) {
     embDstInfo.textContent = "Моля, качете DST файл.";
@@ -794,11 +857,10 @@ function analyzeDstFile(buffer) {
 embUpload.addEventListener("change", function() {
   const file = this.files[0];
   if (!file) {
-    embLoaded = false;
-    embRatio = null;
-    resetImageState(embPreview, "embPreviewWrap", "embImageInfo");
+    clearEmbImageFile();
     return;
   }
+  document.getElementById("embRemoveImageFile").style.display = "inline-block";
   const url = URL.createObjectURL(file);
   embPreview.src = url;
   embPreview.onload = function() {
