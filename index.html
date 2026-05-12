@@ -956,6 +956,35 @@ function clearEmbImageFile() {
   resetEmbOrderState();
 }
 
+function applyEmbroideryFileSize() {
+  if (!embDstSize || !embDstSize.widthCm || !embDstSize.heightCm) return;
+
+  embRatio = embDstSize.widthCm / embDstSize.heightCm;
+  embHeight.placeholder = "Автоматично";
+  document.getElementById("embKeepRatio").checked = true;
+  document.getElementById("embKeepRatio").disabled = false;
+
+  const currentWidth = parsePositiveNumber(embWidth.value);
+  const currentHeight = parsePositiveNumber(embHeight.value);
+
+  if (!currentWidth && !currentHeight) {
+    embWidth.value = embDstSize.widthCm.toFixed(1);
+    embHeight.value = embDstSize.heightCm.toFixed(1);
+    return;
+  }
+
+  if (currentWidth && !currentHeight) {
+    embActiveInput = "width";
+    updateEmbRatio();
+    return;
+  }
+
+  if (!currentWidth && currentHeight) {
+    embActiveInput = "height";
+    updateEmbRatio();
+  }
+}
+
 embDstUpload.addEventListener("change", function() {
   const file = this.files[0];
   embStitchCount = null;
@@ -969,14 +998,39 @@ embDstUpload.addEventListener("change", function() {
   document.getElementById("embRemoveDstFile").style.display = "inline-block";
 
   const isDstFile = file.name.toLowerCase().endsWith(".dst");
+  const isEmbFile = file.name.toLowerCase().endsWith(".emb");
 
   if (!isDstFile) {
-    embRatio = null;
-    embHeight.placeholder = "Въведете височина";
-    document.getElementById("embKeepRatio").checked = false;
-    document.getElementById("embKeepRatio").disabled = true;
-    embDstInfo.textContent = "Файл за бродерия: " + file.name + " | Форматът се приема. EMB/PES/JEF/VP3 и други не дават надеждни бодове в браузъра. Въведете желана ширина и височина за ориентировъчна цена.";
-    autoCalculateEmbroidery();
+    file.arrayBuffer()
+      .then(buffer => {
+        const embInfo = isEmbFile ? analyzeEmbFile(buffer) : null;
+        if (embInfo && embInfo.stitches) {
+          embStitchCount = embInfo.stitches;
+          embDstSize = embInfo.widthCm && embInfo.heightCm ? embInfo : null;
+          if (embDstSize) applyEmbroideryFileSize();
+
+          const sizeInfo = embDstSize
+            ? " | Размер EMB: " + embDstSize.widthCm.toFixed(1) + " × " + embDstSize.heightCm.toFixed(1) + " см"
+            : "";
+
+          embDstInfo.textContent = "EMB файл: " + file.name + " | Бодове: " + formatInteger(embStitchCount) + sizeInfo;
+        } else {
+          embRatio = null;
+          embHeight.placeholder = "Въведете височина";
+          document.getElementById("embKeepRatio").checked = false;
+          document.getElementById("embKeepRatio").disabled = true;
+          embDstInfo.textContent = "Файл за бродерия: " + file.name + " | Форматът се приема. За този формат въведете ширина и височина за ориентировъчна цена.";
+        }
+        autoCalculateEmbroidery();
+      })
+      .catch(() => {
+        embRatio = null;
+        embHeight.placeholder = "Въведете височина";
+        document.getElementById("embKeepRatio").checked = false;
+        document.getElementById("embKeepRatio").disabled = true;
+        embDstInfo.textContent = "Файлът е качен, но размерът не може да бъде прочетен автоматично. Въведете размер и ще се сметне ориентировъчно.";
+        autoCalculateEmbroidery();
+      });
     return;
   }
 
@@ -987,14 +1041,7 @@ embDstUpload.addEventListener("change", function() {
       embDstSize = dstInfo.widthCm && dstInfo.heightCm ? dstInfo : null;
 
       if (embDstSize) {
-        embRatio = embDstSize.widthCm / embDstSize.heightCm;
-        embHeight.placeholder = "Автоматично";
-        document.getElementById("embKeepRatio").disabled = false;
-      }
-
-      if (embRatio && embWidth.value && !embHeight.value) {
-        embActiveInput = "width";
-        updateEmbRatio();
+        applyEmbroideryFileSize();
       }
 
       const sizeInfo = embDstSize
@@ -1011,6 +1058,168 @@ embDstUpload.addEventListener("change", function() {
       autoCalculateEmbroidery();
     });
 });
+
+function readUInt16LE(bytes, offset) {
+  return bytes[offset] | (bytes[offset + 1] << 8);
+}
+
+function readUInt32LE(bytes, offset) {
+  return (bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16) | (bytes[offset + 3] << 24)) >>> 0;
+}
+
+function readInt32LE(bytes, offset) {
+  const value = readUInt32LE(bytes, offset);
+  return value > 0x7FFFFFFF ? value - 0x100000000 : value;
+}
+
+function readFloat64LE(bytes, offset) {
+  return new DataView(bytes.buffer, bytes.byteOffset + offset, 8).getFloat64(0, true);
+}
+
+function isOleCompoundFile(bytes) {
+  const signature = [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
+  return signature.every((value, index) => bytes[index] === value);
+}
+
+function readOleStream(bytes, wantedName) {
+  if (!isOleCompoundFile(bytes)) return null;
+
+  const sectorSize = 1 << readUInt16LE(bytes, 30);
+  const miniSectorSize = 1 << readUInt16LE(bytes, 32);
+  const fatSectorCount = readUInt32LE(bytes, 44);
+  const firstDirectorySector = readUInt32LE(bytes, 48);
+  const miniStreamCutoff = readUInt32LE(bytes, 56);
+  const firstMiniFatSector = readUInt32LE(bytes, 60);
+  const miniFatSectorCount = readUInt32LE(bytes, 64);
+  const difat = [];
+
+  for (let i = 0; i < 109; i += 1) {
+    const sector = readUInt32LE(bytes, 76 + i * 4);
+    if (sector !== 0xFFFFFFFF) difat.push(sector);
+  }
+
+  const sectorOffset = sector => 512 + sector * sectorSize;
+  const fat = [];
+
+  difat.slice(0, fatSectorCount).forEach(sector => {
+    const start = sectorOffset(sector);
+    for (let offset = start; offset < start + sectorSize; offset += 4) {
+      fat.push(readUInt32LE(bytes, offset));
+    }
+  });
+
+  function readSectorChain(startSector) {
+    const chunks = [];
+    let sector = startSector;
+    let guard = 0;
+
+    while (sector !== 0xFFFFFFFE && sector !== 0xFFFFFFFF && sector < fat.length && guard < 100000) {
+      const start = sectorOffset(sector);
+      chunks.push(bytes.slice(start, start + sectorSize));
+      sector = fat[sector];
+      guard += 1;
+    }
+
+    const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    const result = new Uint8Array(totalLength);
+    let writeOffset = 0;
+    chunks.forEach(chunk => {
+      result.set(chunk, writeOffset);
+      writeOffset += chunk.length;
+    });
+    return result;
+  }
+
+  const directory = readSectorChain(firstDirectorySector);
+  const entries = [];
+  const decoder = new TextDecoder("utf-16le");
+
+  for (let offset = 0; offset + 128 <= directory.length; offset += 128) {
+    const nameLength = readUInt16LE(directory, offset + 64);
+    if (!nameLength) continue;
+    const name = decoder.decode(directory.slice(offset, offset + nameLength - 2));
+    const type = directory[offset + 66];
+    const startSector = readUInt32LE(directory, offset + 116);
+    const size = readUInt32LE(directory, offset + 120);
+    entries.push({ name, type, startSector, size });
+  }
+
+  const root = entries.find(entry => entry.type === 5);
+  const miniStream = root ? readSectorChain(root.startSector).slice(0, root.size) : new Uint8Array();
+  const miniFatStream = readSectorChain(firstMiniFatSector).slice(0, miniFatSectorCount * sectorSize);
+  const miniFat = [];
+
+  for (let offset = 0; offset + 4 <= miniFatStream.length; offset += 4) {
+    miniFat.push(readUInt32LE(miniFatStream, offset));
+  }
+
+  function readMiniSectorChain(startSector, size) {
+    const chunks = [];
+    let sector = startSector;
+    let guard = 0;
+
+    while (sector !== 0xFFFFFFFE && sector !== 0xFFFFFFFF && sector < miniFat.length && guard < 100000) {
+      const start = sector * miniSectorSize;
+      chunks.push(miniStream.slice(start, start + miniSectorSize));
+      sector = miniFat[sector];
+      guard += 1;
+    }
+
+    const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    const result = new Uint8Array(totalLength);
+    let writeOffset = 0;
+    chunks.forEach(chunk => {
+      result.set(chunk, writeOffset);
+      writeOffset += chunk.length;
+    });
+    return result.slice(0, size);
+  }
+
+  const streamEntry = entries.find(entry => entry.type === 2 && entry.name.includes(wantedName));
+  if (!streamEntry) return null;
+
+  return streamEntry.size < miniStreamCutoff
+    ? readMiniSectorChain(streamEntry.startSector, streamEntry.size)
+    : readSectorChain(streamEntry.startSector).slice(0, streamEntry.size);
+}
+
+function parseWilcomStitches(stream) {
+  const text = new TextDecoder("latin1").decode(stream);
+  const colorwayMatch = text.match(/Colorway 1[\s\S]{0,120}?(\d{3,7})\t\d+(?:\.\d+)?\t/);
+  if (colorwayMatch) return parseInt(colorwayMatch[1], 10);
+
+  const fallback = stream.length > 0x1B4 ? readInt32LE(stream, 0x1B4) : 0;
+  return fallback > 0 && fallback < 1000000 ? fallback : null;
+}
+
+function parseWilcomSize(stream) {
+  const unitToCm = 283.4645669;
+  const widthRaw = stream.length > 0x1F4 ? readFloat64LE(stream, 0x1EC) : 0;
+  const heightRaw = stream.length > 0x1A0 ? readUInt16LE(stream, 0x19C) : 0;
+  const widthCm = widthRaw > 0 ? widthRaw / unitToCm : null;
+  const heightCm = heightRaw > 0 ? heightRaw / unitToCm : null;
+
+  if (widthCm && heightCm && widthCm >= 1 && heightCm >= 1 && widthCm <= 80 && heightCm <= 80) {
+    return { widthCm, heightCm };
+  }
+
+  return { widthCm: null, heightCm: null };
+}
+
+function analyzeEmbFile(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const stream = readOleStream(bytes, "WilcomDesignInformationDDD");
+  if (!stream) return null;
+
+  const stitches = parseWilcomStitches(stream);
+  const size = parseWilcomSize(stream);
+
+  return {
+    stitches,
+    widthCm: size.widthCm,
+    heightCm: size.heightCm
+  };
+}
 
 function decodeDstRecord(b0, b1, b2) {
   let x = 0;
