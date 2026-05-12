@@ -1185,11 +1185,20 @@ function readOleStream(bytes, wantedName) {
 
 function parseWilcomStitches(stream) {
   const text = new TextDecoder("latin1").decode(stream);
-  const colorwayMatch = text.match(/Colorway 1[\s\S]{0,120}?(\d{3,7})\t\d+(?:\.\d+)?\t/);
-  if (colorwayMatch) return parseInt(colorwayMatch[1], 10);
+  const metadataStitches = stream.length > 0x1B4 ? readInt32LE(stream, 0x1B4) : 0;
+  const colorwaySection = text.match(/Colorway 1[\s\S]{0,500}?Native design/);
+  let colorwayStitches = 0;
 
-  const fallback = stream.length > 0x1B4 ? readInt32LE(stream, 0x1B4) : 0;
-  return fallback > 0 && fallback < 1000000 ? fallback : null;
+  if (colorwaySection) {
+    const matches = colorwaySection[0].matchAll(/(?:^|\n|\r)(?:\d+)\t(?:\d+)\t\t(\d{3,7})\t/g);
+    for (const match of matches) {
+      colorwayStitches += parseInt(match[1], 10);
+    }
+  }
+
+  if (metadataStitches > 0 && metadataStitches < 1000000) return metadataStitches;
+  if (colorwayStitches > 0 && colorwayStitches < 1000000) return colorwayStitches;
+  return null;
 }
 
 function parseWilcomSize(stream) {
@@ -1201,6 +1210,15 @@ function parseWilcomSize(stream) {
 
   if (widthCm && heightCm && widthCm >= 1 && heightCm >= 1 && widthCm <= 80 && heightCm <= 80) {
     return { widthCm, heightCm };
+  }
+
+  const designWidthRaw = stream.length > 0x1F4 ? readFloat64LE(stream, 0x1EC) : 0;
+  const designHeightRaw = stream.length > 0x1E8 ? readInt32LE(stream, 0x1E4) : 0;
+  const designWidthCm = designWidthRaw > 0 ? designWidthRaw / 1000 : null;
+  const designHeightCm = designHeightRaw > 0 ? designHeightRaw / 1000 : null;
+
+  if (designWidthCm && designHeightCm && designWidthCm >= 1 && designHeightCm >= 1 && designWidthCm <= 80 && designHeightCm <= 80) {
+    return { widthCm: designWidthCm, heightCm: designHeightCm };
   }
 
   return { widthCm: null, heightCm: null };
@@ -1417,8 +1435,9 @@ function calculateEmbroidery() {
   const totalText = total.toFixed(2) + " €";
   const fileName = embUpload.files[0] ? embUpload.files[0].name : "";
   const dstFileName = embDstUpload.files[0] ? embDstUpload.files[0].name : "";
+  const embroideryFileType = dstFileName.toLowerCase().endsWith(".emb") ? "EMB" : "DST";
   const methodText = hasDstStitches
-    ? (dstStitchesWereScaled ? "Преизчислени бодове от DST файл" : "Реални бодове от DST файл")
+    ? (dstStitchesWereScaled ? "Преизчислени бодове от " + embroideryFileType + " файл" : "Реални бодове от " + embroideryFileType + " файл")
     : (canEstimateFromSize ? "Ориентировъчни бодове от качен файл" : "Приблизителни бримки от изображение");
 
   document.getElementById("embSizeResult").innerText = sizeText;
