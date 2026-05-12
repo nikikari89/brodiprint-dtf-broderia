@@ -558,7 +558,7 @@
       <div class="media-panel">
         <div class="upload-box">
           <strong>Качете файл за бродерия</strong>
-          <div class="image-info">DST се чете с реални бодове. Други формати се приемат и цената се смята ориентировъчно по размер и сложност.</div>
+          <div class="image-info">DST, EMB, PES, PEC, JEF, EXP и DSB се разчитат автоматично, когато файлът съдържа нужните данни. Другите формати се приемат за преглед.</div>
           <input id="embDstUpload" name="fi-file-dst_file" type="file" accept=".dst,.emb,.pes,.jef,.exp,.vp3,.xxx,.hus,.sew,.pec,.art,.ofm,.dsb,.cnd,application/octet-stream">
           <button class="remove-file" type="button" id="embRemoveDstFile">Изтрий файла</button>
           <div id="embDstInfo" class="image-info"></div>
@@ -997,29 +997,29 @@ embDstUpload.addEventListener("change", function() {
   }
   document.getElementById("embRemoveDstFile").style.display = "inline-block";
 
-  const isDstFile = file.name.toLowerCase().endsWith(".dst");
-  const isEmbFile = file.name.toLowerCase().endsWith(".emb");
+  const fileType = getFileExtension(file.name);
+  const isDstFile = fileType === "dst";
 
   if (!isDstFile) {
     file.arrayBuffer()
       .then(buffer => {
-        const embInfo = isEmbFile ? analyzeEmbFile(buffer) : null;
+        const embInfo = analyzeEmbroideryMachineFile(buffer, file.name);
         if (embInfo && embInfo.stitches) {
           embStitchCount = embInfo.stitches;
           embDstSize = embInfo.widthCm && embInfo.heightCm ? embInfo : null;
           if (embDstSize) applyEmbroideryFileSize();
 
           const sizeInfo = embDstSize
-            ? " | Размер EMB: " + embDstSize.widthCm.toFixed(1) + " × " + embDstSize.heightCm.toFixed(1) + " см"
+            ? " | Размер " + fileType.toUpperCase() + ": " + embDstSize.widthCm.toFixed(1) + " × " + embDstSize.heightCm.toFixed(1) + " см"
             : "";
 
-          embDstInfo.textContent = "EMB файл: " + file.name + " | Бодове: " + formatInteger(embStitchCount) + sizeInfo;
+          embDstInfo.textContent = fileType.toUpperCase() + " файл: " + file.name + " | Бодове: " + formatInteger(embStitchCount) + sizeInfo;
         } else {
           embRatio = null;
           embHeight.placeholder = "Въведете височина";
           document.getElementById("embKeepRatio").checked = false;
           document.getElementById("embKeepRatio").disabled = true;
-          embDstInfo.textContent = "Файл за бродерия: " + file.name + " | Форматът се приема. За този формат въведете ширина и височина за ориентировъчна цена.";
+          embDstInfo.textContent = "Файл за бродерия: " + file.name + " | Форматът се приема. Този формат не дава надеждни автоматични бодове в браузъра, затова въведете ширина и височина за ориентировъчна цена.";
         }
         autoCalculateEmbroidery();
       })
@@ -1074,6 +1074,15 @@ function readInt32LE(bytes, offset) {
 
 function readFloat64LE(bytes, offset) {
   return new DataView(bytes.buffer, bytes.byteOffset + offset, 8).getFloat64(0, true);
+}
+
+function readInt8(bytes, offset) {
+  return bytes[offset] > 127 ? bytes[offset] - 256 : bytes[offset];
+}
+
+function getFileExtension(fileName) {
+  const match = String(fileName || "").toLowerCase().match(/\.([a-z0-9]+)$/);
+  return match ? match[1] : "";
 }
 
 function isOleCompoundFile(bytes) {
@@ -1237,6 +1246,166 @@ function analyzeEmbFile(buffer) {
     widthCm: size.widthCm,
     heightCm: size.heightCm
   };
+}
+
+function finishStitchAnalysis(stitches, minX, maxX, minY, maxY, unitToCm) {
+  const widthCm = (maxX - minX) * unitToCm;
+  const heightCm = (maxY - minY) * unitToCm;
+
+  return {
+    stitches,
+    widthCm: widthCm > 0.2 && widthCm < 200 ? widthCm : null,
+    heightCm: heightCm > 0.2 && heightCm < 200 ? heightCm : null
+  };
+}
+
+function analyzeExpLikeFile(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let x = 0;
+  let y = 0;
+  let minX = 0;
+  let maxX = 0;
+  let minY = 0;
+  let maxY = 0;
+  let stitches = 0;
+
+  for (let offset = 0; offset + 2 < bytes.length; offset += 3) {
+    const flags = bytes[offset + 2];
+    if (flags === 0x80 || flags === 0xF3) break;
+    if (flags & 0x80) continue;
+
+    x += readInt8(bytes, offset);
+    y += readInt8(bytes, offset + 1);
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+    stitches += 1;
+  }
+
+  return stitches ? finishStitchAnalysis(stitches, minX, maxX, minY, maxY, 0.01) : null;
+}
+
+function analyzeJefFile(buffer) {
+  const bytes = new Uint8Array(buffer);
+  if (bytes.length < 128) return null;
+
+  const stitchOffset = readUInt32LE(bytes, 0);
+  const declaredStitches = readUInt32LE(bytes, 0x1C);
+  if (!stitchOffset || stitchOffset >= bytes.length) return null;
+
+  let x = 0;
+  let y = 0;
+  let minX = 0;
+  let maxX = 0;
+  let minY = 0;
+  let maxY = 0;
+  let stitches = 0;
+
+  for (let offset = stitchOffset; offset + 1 < bytes.length; offset += 2) {
+    const b0 = bytes[offset];
+    const b1 = bytes[offset + 1];
+    if (b0 === 0x80 && b1 === 0x10) break;
+    if (b0 === 0x80) continue;
+
+    x += readInt8(bytes, offset);
+    y += readInt8(bytes, offset + 1);
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+    stitches += 1;
+  }
+
+  return (stitches || declaredStitches)
+    ? finishStitchAnalysis(stitches || declaredStitches, minX, maxX, minY, maxY, 0.01)
+    : null;
+}
+
+function decodePecMove(value1, value2) {
+  let value = value1;
+  let consumed = 1;
+
+  if (value1 & 0x80) {
+    value = ((value1 & 0x0F) << 8) + value2;
+    if (value & 0x800) value -= 0x1000;
+    consumed = 2;
+  } else if (value1 >= 0x40) {
+    value -= 0x80;
+  }
+
+  return { value, consumed };
+}
+
+function analyzePecStitches(bytes, startOffset) {
+  let x = 0;
+  let y = 0;
+  let minX = 0;
+  let maxX = 0;
+  let minY = 0;
+  let maxY = 0;
+  let stitches = 0;
+  let offset = startOffset;
+
+  while (offset + 1 < bytes.length) {
+    const b0 = bytes[offset];
+    const b1 = bytes[offset + 1];
+
+    if (b0 === 0xFF && b1 === 0x00) break;
+    if (b0 === 0xFE && b1 === 0xB0) {
+      offset += 3;
+      continue;
+    }
+
+    const dx = decodePecMove(b0, b1);
+    const yOffset = offset + dx.consumed;
+    if (yOffset >= bytes.length) break;
+    const dy = decodePecMove(bytes[yOffset], bytes[yOffset + 1] || 0);
+
+    x += dx.value;
+    y += dy.value;
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+    stitches += 1;
+    offset += dx.consumed + dy.consumed;
+  }
+
+  return stitches ? finishStitchAnalysis(stitches, minX, maxX, minY, maxY, 0.01) : null;
+}
+
+function findAscii(bytes, text) {
+  const pattern = Array.from(text, char => char.charCodeAt(0));
+  for (let index = 0; index <= bytes.length - pattern.length; index += 1) {
+    let found = true;
+    for (let i = 0; i < pattern.length; i += 1) {
+      if (bytes[index + i] !== pattern[i]) {
+        found = false;
+        break;
+      }
+    }
+    if (found) return index;
+  }
+  return -1;
+}
+
+function analyzePesOrPecFile(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const pecStart = findAscii(bytes, "#PEC");
+  if (pecStart < 0) return null;
+  return analyzePecStitches(bytes, pecStart + 512);
+}
+
+function analyzeEmbroideryMachineFile(buffer, fileName) {
+  const type = getFileExtension(fileName);
+
+  if (type === "emb") return analyzeEmbFile(buffer);
+  if (type === "jef") return analyzeJefFile(buffer);
+  if (type === "pes" || type === "pec") return analyzePesOrPecFile(buffer);
+  if (type === "exp" || type === "dsb") return analyzeExpLikeFile(buffer);
+
+  return null;
 }
 
 function decodeDstRecord(b0, b1, b2) {
@@ -1435,7 +1604,7 @@ function calculateEmbroidery() {
   const totalText = total.toFixed(2) + " €";
   const fileName = embUpload.files[0] ? embUpload.files[0].name : "";
   const dstFileName = embDstUpload.files[0] ? embDstUpload.files[0].name : "";
-  const embroideryFileType = dstFileName.toLowerCase().endsWith(".emb") ? "EMB" : "DST";
+  const embroideryFileType = dstFileName ? getFileExtension(dstFileName).toUpperCase() : "файл";
   const methodText = hasDstStitches
     ? (dstStitchesWereScaled ? "Преизчислени бодове от " + embroideryFileType + " файл" : "Реални бодове от " + embroideryFileType + " файл")
     : (canEstimateFromSize ? "Ориентировъчни бодове от качен файл" : "Приблизителни бримки от изображение");
