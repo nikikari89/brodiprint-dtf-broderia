@@ -984,32 +984,35 @@ function resetEmbOrderState() {
   lastQuotes.emb = "";
 }
 
-function clearEmbDstFile() {
-  embDstUpload.value = "";
+function resetEmbroideryCalculatorFields() {
   embStitchCount = null;
   embDstSize = null;
-  embRatio = embLoaded && embPreview.naturalWidth && embPreview.naturalHeight
-    ? embPreview.naturalWidth / embPreview.naturalHeight
-    : null;
+  embRatio = null;
   embActiveInput = null;
   embWidth.value = "";
   embHeight.value = "";
-  embDstInfo.textContent = "";
   embHeight.placeholder = "Автоматично";
   document.getElementById("embKeepRatio").checked = true;
   document.getElementById("embKeepRatio").disabled = false;
+  document.getElementById("embComplexity").value = "136";
+  document.getElementById("embRate").value = "0.80";
   document.getElementById("embQty").value = "1";
-  document.getElementById("embRemoveDstFile").style.display = "none";
   resetEmbOrderState();
+}
+
+function clearEmbDstFile() {
+  embDstUpload.value = "";
+  embDstInfo.textContent = "";
+  document.getElementById("embRemoveDstFile").style.display = "none";
+  resetEmbroideryCalculatorFields();
 }
 
 function clearEmbImageFile() {
   embUpload.value = "";
   embLoaded = false;
-  if (!embDstSize) embRatio = null;
   resetImageState(embPreview, "embPreviewWrap", "embImageInfo");
   document.getElementById("embRemoveImageFile").style.display = "none";
-  resetEmbOrderState();
+  resetEmbroideryCalculatorFields();
 }
 
 function applyEmbroideryFileSize() {
