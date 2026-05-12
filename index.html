@@ -558,7 +558,7 @@
       <div class="media-panel">
         <div class="upload-box">
           <strong>Качете файл за бродерия</strong>
-          <div class="image-info">DST, EMB, PES, PEC, JEF, EXP и DSB се разчитат автоматично, когато файлът съдържа нужните данни. Другите формати се приемат за преглед.</div>
+          <div class="image-info">DST, EMB, PES, PEC, JEF, EXP и DSB се разчитат автоматично, когато файлът съдържа нужните данни. VP3, XXX, HUS, SEW, ART, OFM и CND се приемат за преглед; ако не се прочетат автоматично, въведете ширина и височина и цената ще се сметне ориентировъчно.</div>
           <input id="embDstUpload" name="fi-file-dst_file" type="file" accept=".dst,.emb,.pes,.jef,.exp,.vp3,.xxx,.hus,.sew,.pec,.art,.ofm,.dsb,.cnd,application/octet-stream">
           <button class="remove-file" type="button" id="embRemoveDstFile">Изтрий файла</button>
           <div id="embDstInfo" class="image-info"></div>
@@ -707,7 +707,7 @@ function autoCalculateDTF() {
 }
 
 function autoCalculateEmbroidery() {
-  if (embStitchCount || embLoaded || document.getElementById("embResult").style.display === "block") {
+  if (embStitchCount || embLoaded || (embDstUpload && embDstUpload.files && embDstUpload.files[0]) || document.getElementById("embResult").style.display === "block") {
     calculateEmbroidery();
   }
 }
@@ -1642,7 +1642,7 @@ function calculateEmbroidery() {
       if (!w && !h) {
         error.textContent = "Файлът е приет. За този формат въведете желана ширина и желана височина.";
       } else if (!h) {
-        error.textContent = "Файлът е приет. За EMB/PES/JEF формат въведете и желана височина. Тя не може да се попълни автоматично.";
+        error.textContent = "Файлът е приет, но този формат не даде надежден автоматичен размер. Въведете и желана височина.";
       } else {
         error.textContent = "Файлът е приет. За този формат въведете и желана ширина.";
       }
