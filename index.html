@@ -1125,6 +1125,19 @@ function formatEmbroiderySize(width, height) {
   return "не е въведен";
 }
 
+function getScaledDstStitches(width, height) {
+  if (!embStitchCount) return null;
+  if (!width || !height || !embDstSize || !embDstSize.widthCm || !embDstSize.heightCm) {
+    return embStitchCount;
+  }
+
+  const originalArea = embDstSize.widthCm * embDstSize.heightCm;
+  const desiredArea = width * height;
+  if (!originalArea || !desiredArea) return embStitchCount;
+
+  return Math.max(1, Math.round(embStitchCount * (desiredArea / originalArea)));
+}
+
 function calculateEmbroidery() {
   const w = parsePositiveNumber(embWidth.value);
   const h = parsePositiveNumber(embHeight.value);
@@ -1137,7 +1150,8 @@ function calculateEmbroidery() {
 
   const hasDstStitches = !!embStitchCount;
   const canEstimateFromImage = !hasDstStitches && embLoaded && w && h && density;
-  const effectiveStitches = hasDstStitches ? embStitchCount : (canEstimateFromImage ? Math.round(w * h * density) : null);
+  const effectiveStitches = hasDstStitches ? getScaledDstStitches(w, h) : (canEstimateFromImage ? Math.round(w * h * density) : null);
+  const dstStitchesWereScaled = hasDstStitches && embDstSize && w && h && effectiveStitches !== embStitchCount;
 
   if (!qty || !effectiveStitches) {
     result.style.display = "none";
@@ -1159,13 +1173,17 @@ function calculateEmbroidery() {
   const totalText = total.toFixed(2) + " €";
   const fileName = embUpload.files[0] ? embUpload.files[0].name : "";
   const dstFileName = embDstUpload.files[0] ? embDstUpload.files[0].name : "";
-  const methodText = hasDstStitches ? "Реални бодове от DST файл" : "Приблизителни бримки от изображение";
+  const methodText = hasDstStitches
+    ? (dstStitchesWereScaled ? "Преизчислени бодове от DST файл" : "Реални бодове от DST файл")
+    : "Приблизителни бримки от изображение";
 
   document.getElementById("embSizeResult").innerText = sizeText;
   document.getElementById("embMethodResult").innerText = methodText;
   document.getElementById("embAreaRow").style.display = area ? "flex" : "none";
   document.getElementById("embAreaResult").innerText = area ? area.toFixed(1) + " кв.см" : "-";
-  document.getElementById("embStitchesLabel").innerText = hasDstStitches ? "Бодове:" : "Приблизителни бримки:";
+  document.getElementById("embStitchesLabel").innerText = hasDstStitches
+    ? (dstStitchesWereScaled ? "Бодове след оразмеряване:" : "Бодове:")
+    : "Приблизителни бримки:";
   document.getElementById("embStitchesResult").innerText = formatInteger(effectiveStitches);
   document.getElementById("embRateResult").innerText = rateText;
   document.getElementById("embQtyResult").innerText = qty + " бр.";
