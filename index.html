@@ -969,7 +969,7 @@ embDstUpload.addEventListener("change", function() {
   const isDstFile = file.name.toLowerCase().endsWith(".dst");
 
   if (!isDstFile) {
-    embDstInfo.textContent = "Файл за бродерия: " + file.name + " | Форматът се приема. Бодовете ще се изчислят ориентировъчно по размер и сложност.";
+    embDstInfo.textContent = "Файл за бродерия: " + file.name + " | Форматът се приема. EMB/PES/JEF/VP3 и други не дават надеждни бодове в браузъра. Въведете желана ширина и височина за ориентировъчна цена.";
     autoCalculateEmbroidery();
     return;
   }
@@ -1164,9 +1164,15 @@ function calculateEmbroidery() {
   if (!qty || !effectiveStitches) {
     result.style.display = "none";
     error.style.display = "block";
+    if (hasEmbroideryFile && !hasDstStitches && (!w || !h)) {
+      error.textContent = "Файлът е приет. За този формат въведете желана ширина и височина, за да изчислим ориентировъчна цена.";
+    } else {
+      error.textContent = "Моля, качете файл за бродерия или изображение и въведете коректни размери и количество.";
+    }
     return;
   }
 
+  error.style.display = "none";
   const area = w && h ? w * h : null;
   const priceBeforeMinimum = (effectiveStitches / 1000) * pricePerThousand;
   const minimumOne = EMB_MIN_PRICE;
