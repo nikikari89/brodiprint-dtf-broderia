@@ -557,10 +557,10 @@
     <div class="section-layout">
       <div class="media-panel">
         <div class="upload-box">
-          <strong>Качете DST файл за бродерия</strong>
-          <div class="image-info">Задължително за автоматично изчисляване на бодовете и цената.</div>
-          <input id="embDstUpload" name="fi-file-dst_file" type="file" accept=".dst,application/octet-stream">
-          <button class="remove-file" type="button" id="embRemoveDstFile">Изтрий DST файла</button>
+          <strong>Качете файл за бродерия</strong>
+          <div class="image-info">DST се чете с реални бодове. Други формати се приемат и цената се смята ориентировъчно по размер и сложност.</div>
+          <input id="embDstUpload" name="fi-file-dst_file" type="file" accept=".dst,.emb,.pes,.jef,.exp,.vp3,.xxx,.hus,.sew,.pec,.art,.ofm,.dsb,.cnd,application/octet-stream">
+          <button class="remove-file" type="button" id="embRemoveDstFile">Изтрий файла</button>
           <div id="embDstInfo" class="image-info"></div>
         </div>
 
@@ -627,7 +627,7 @@
     <input id="embClientEmail" type="email" autocomplete="email" placeholder="Имейл за отговор">
 
     <button class="calc" type="button" id="embCalculate">Изчисли цена</button>
-    <div id="embError" class="error">Моля, качете DST файл и въведете коректно количество.</div>
+    <div id="embError" class="error">Моля, качете файл за бродерия или изображение и въведете коректни размери и количество.</div>
     <div id="embOrderError" class="error">Моля, въведете име и поне телефон или имейл, за да изпратите заявката.</div>
 
     <div id="embResult" class="result">
@@ -966,8 +966,11 @@ embDstUpload.addEventListener("change", function() {
   }
   document.getElementById("embRemoveDstFile").style.display = "inline-block";
 
-  if (!file.name.toLowerCase().endsWith(".dst")) {
-    embDstInfo.textContent = "Моля, качете DST файл.";
+  const isDstFile = file.name.toLowerCase().endsWith(".dst");
+
+  if (!isDstFile) {
+    embDstInfo.textContent = "Файл за бродерия: " + file.name + " | Форматът се приема. Бодовете ще се изчислят ориентировъчно по размер и сложност.";
+    autoCalculateEmbroidery();
     return;
   }
 
@@ -996,7 +999,8 @@ embDstUpload.addEventListener("change", function() {
     .catch(() => {
       embStitchCount = null;
       embDstSize = null;
-      embDstInfo.textContent = "DST файлът не може да бъде прочетен.";
+      embDstInfo.textContent = "Файлът е качен, но бодовете не могат да бъдат прочетени автоматично. Въведете размер и ще се сметне ориентировъчно.";
+      autoCalculateEmbroidery();
     });
 });
 
@@ -1149,8 +1153,12 @@ function calculateEmbroidery() {
   const error = document.getElementById("embError");
 
   const hasDstStitches = !!embStitchCount;
+  const hasEmbroideryFile = !!embDstUpload.files[0];
+  const canEstimateFromSize = !hasDstStitches && hasEmbroideryFile && w && h && density;
   const canEstimateFromImage = !hasDstStitches && embLoaded && w && h && density;
-  const effectiveStitches = hasDstStitches ? getScaledDstStitches(w, h) : (canEstimateFromImage ? Math.round(w * h * density) : null);
+  const effectiveStitches = hasDstStitches
+    ? getScaledDstStitches(w, h)
+    : ((canEstimateFromSize || canEstimateFromImage) ? Math.round(w * h * density) : null);
   const dstStitchesWereScaled = hasDstStitches && embDstSize && w && h && effectiveStitches !== embStitchCount;
 
   if (!qty || !effectiveStitches) {
@@ -1175,7 +1183,7 @@ function calculateEmbroidery() {
   const dstFileName = embDstUpload.files[0] ? embDstUpload.files[0].name : "";
   const methodText = hasDstStitches
     ? (dstStitchesWereScaled ? "Преизчислени бодове от DST файл" : "Реални бодове от DST файл")
-    : "Приблизителни бримки от изображение";
+    : (canEstimateFromSize ? "Ориентировъчни бодове от качен файл" : "Приблизителни бримки от изображение");
 
   document.getElementById("embSizeResult").innerText = sizeText;
   document.getElementById("embMethodResult").innerText = methodText;
@@ -1362,10 +1370,10 @@ async function saveOrderToSupabase(type, order, quote, details) {
   }
 
   try {
-    dstFilePath = dstFile ? await uploadSupabaseFile(dstFile, basePath + "/dst-" + makeSafeFileName(dstFile.name)) : "";
+    dstFilePath = dstFile ? await uploadSupabaseFile(dstFile, basePath + "/embroidery-" + makeSafeFileName(dstFile.name)) : "";
   } catch (error) {
-    console.error("DST file upload failed", error);
-    storageErrors.push("DST файл: " + error.message);
+    console.error("Embroidery file upload failed", error);
+    storageErrors.push("Файл за бродерия: " + error.message);
   }
 
   try {
