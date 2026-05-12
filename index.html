@@ -1035,8 +1035,7 @@ function analyzeDstFile(buffer) {
     return { stitches: 0, widthCm: null, heightCm: null };
   }
 
-  let stitches = 0;
-  let fallbackRecords = 0;
+  let machineStitches = 0;
   let x = 0;
   let y = 0;
   let minX = 0;
@@ -1050,7 +1049,7 @@ function analyzeDstFile(buffer) {
     const b2 = bytes[i + 2];
     if (b2 === 0xF3) break;
 
-    fallbackRecords += 1;
+    machineStitches += 1;
 
     const movement = decodeDstRecord(b0, b1, b2);
     x += movement.x;
@@ -1060,17 +1059,13 @@ function analyzeDstFile(buffer) {
     minY = Math.min(minY, y);
     maxY = Math.max(maxY, y);
 
-    // Standard Tajima DST stitch commands usually end with 0x03.
-    if (b2 === 0x03) {
-      stitches += 1;
-    }
   }
 
   const widthCm = (maxX - minX) / 100;
   const heightCm = (maxY - minY) / 100;
 
   return {
-    stitches: stitches || fallbackRecords,
+    stitches: machineStitches,
     widthCm: widthCm > 0 ? widthCm : null,
     heightCm: heightCm > 0 ? heightCm : null
   };
