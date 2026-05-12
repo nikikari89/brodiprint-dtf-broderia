@@ -1064,7 +1064,7 @@ embDstUpload.addEventListener("change", function() {
           embHeight.placeholder = "Въведете височина";
           document.getElementById("embKeepRatio").checked = false;
           document.getElementById("embKeepRatio").disabled = true;
-          embDstInfo.textContent = "Файл за бродерия: " + file.name + " | Форматът се приема. Този формат не дава надеждни автоматични бодове в браузъра, затова въведете ширина и височина за ориентировъчна цена.";
+          embDstInfo.textContent = "Файл за бродерия: " + file.name + " | Файлът е приет. За този формат точните бодове се потвърждават след проверка в Wilcom. Въведете ширина и височина за ориентировъчна цена.";
         }
         autoCalculateEmbroidery();
       })
@@ -1073,7 +1073,7 @@ embDstUpload.addEventListener("change", function() {
         embHeight.placeholder = "Въведете височина";
         document.getElementById("embKeepRatio").checked = false;
         document.getElementById("embKeepRatio").disabled = true;
-        embDstInfo.textContent = "Файлът е качен, но размерът не може да бъде прочетен автоматично. Въведете размер и ще се сметне ориентировъчно.";
+        embDstInfo.textContent = "Файлът е качен. Автоматичното четене не е надеждно за този формат, затова точните бодове се потвърждават в Wilcom. Въведете размер и ще се сметне ориентировъчно.";
         autoCalculateEmbroidery();
       });
     return;
@@ -1640,11 +1640,11 @@ function calculateEmbroidery() {
     error.style.display = "block";
     if (hasEmbroideryFile && !hasDstStitches && (!w || !h)) {
       if (!w && !h) {
-        error.textContent = "Файлът е приет. За този формат въведете желана ширина и желана височина.";
+        error.textContent = "Файлът е приет. За този формат точните бодове се потвърждават в Wilcom. Въведете желана ширина и желана височина за ориентировъчна цена.";
       } else if (!h) {
-        error.textContent = "Файлът е приет, но този формат не даде надежден автоматичен размер. Въведете и желана височина.";
+        error.textContent = "Файлът е приет. Точните бодове се потвърждават в Wilcom. Въведете и желана височина.";
       } else {
-        error.textContent = "Файлът е приет. За този формат въведете и желана ширина.";
+        error.textContent = "Файлът е приет. Точните бодове се потвърждават в Wilcom. Въведете и желана ширина.";
       }
     } else {
       error.textContent = "Моля, качете файл за бродерия или изображение и въведете коректни размери и количество.";
@@ -1670,7 +1670,7 @@ function calculateEmbroidery() {
   const embroideryFileType = dstFileName ? getFileExtension(dstFileName).toUpperCase() : "файл";
   const methodText = hasDstStitches
     ? (dstStitchesWereScaled ? "Преизчислени бодове от " + embroideryFileType + " файл" : "Реални бодове от " + embroideryFileType + " файл")
-    : (canEstimateFromSize ? "Ориентировъчни бодове от качен файл" : "Приблизителни бримки от изображение");
+    : (canEstimateFromSize ? "Ориентировъчно по размер - точните бодове се потвърждават в Wilcom" : "Приблизителни бримки от изображение");
 
   document.getElementById("embSizeResult").innerText = sizeText;
   document.getElementById("embMethodResult").innerText = methodText;
