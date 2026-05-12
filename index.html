@@ -941,6 +941,8 @@ function clearEmbDstFile() {
   embStitchCount = null;
   embDstSize = null;
   embDstInfo.textContent = "";
+  embHeight.placeholder = "Автоматично";
+  document.getElementById("embKeepRatio").disabled = false;
   document.getElementById("embRemoveDstFile").style.display = "none";
   resetEmbOrderState();
 }
@@ -969,6 +971,10 @@ embDstUpload.addEventListener("change", function() {
   const isDstFile = file.name.toLowerCase().endsWith(".dst");
 
   if (!isDstFile) {
+    embRatio = null;
+    embHeight.placeholder = "Въведете височина";
+    document.getElementById("embKeepRatio").checked = false;
+    document.getElementById("embKeepRatio").disabled = true;
     embDstInfo.textContent = "Файл за бродерия: " + file.name + " | Форматът се приема. EMB/PES/JEF/VP3 и други не дават надеждни бодове в браузъра. Въведете желана ширина и височина за ориентировъчна цена.";
     autoCalculateEmbroidery();
     return;
@@ -982,6 +988,8 @@ embDstUpload.addEventListener("change", function() {
 
       if (embDstSize) {
         embRatio = embDstSize.widthCm / embDstSize.heightCm;
+        embHeight.placeholder = "Автоматично";
+        document.getElementById("embKeepRatio").disabled = false;
       }
 
       if (embRatio && embWidth.value && !embHeight.value) {
@@ -1165,7 +1173,13 @@ function calculateEmbroidery() {
     result.style.display = "none";
     error.style.display = "block";
     if (hasEmbroideryFile && !hasDstStitches && (!w || !h)) {
-      error.textContent = "Файлът е приет. За този формат въведете желана ширина и височина, за да изчислим ориентировъчна цена.";
+      if (!w && !h) {
+        error.textContent = "Файлът е приет. За този формат въведете желана ширина и желана височина.";
+      } else if (!h) {
+        error.textContent = "Файлът е приет. За EMB/PES/JEF формат въведете и желана височина. Тя не може да се попълни автоматично.";
+      } else {
+        error.textContent = "Файлът е приет. За този формат въведете и желана ширина.";
+      }
     } else {
       error.textContent = "Моля, качете файл за бродерия или изображение и въведете коректни размери и количество.";
     }
