@@ -1303,19 +1303,21 @@ embUpload.addEventListener("change", function() {
   embPreview.src = url;
   embPreview.onload = function() {
     embLoaded = true;
-    embRatio = embPreview.naturalWidth / embPreview.naturalHeight;
+    if (!embDstSize) {
+      embRatio = embPreview.naturalWidth / embPreview.naturalHeight;
+    }
     document.getElementById("embPreviewWrap").style.display = "block";
     setImageInfo("embImageInfo", file, embPreview);
     if (!embWidth.value && !embHeight.value) {
       embWidth.value = 10;
-      embHeight.value = (10 / embRatio).toFixed(1);
+      embHeight.value = (10 / (embDstSize ? embDstSize.widthCm / embDstSize.heightCm : embRatio)).toFixed(1);
     }
     autoCalculateEmbroidery();
     URL.revokeObjectURL(url);
   };
   embPreview.onerror = function() {
     embLoaded = false;
-    embRatio = null;
+    if (!embDstSize) embRatio = null;
     resetImageState(embPreview, "embPreviewWrap", "embImageInfo");
     URL.revokeObjectURL(url);
   };
@@ -1332,11 +1334,16 @@ document.getElementById("embComplexity").addEventListener("change", autoCalculat
 document.getElementById("embRate").addEventListener("input", autoCalculateEmbroidery);
 
 function updateEmbRatio() {
-  if (!document.getElementById("embKeepRatio").checked || !embRatio) return;
+  const fileRatio = embDstSize && embDstSize.widthCm && embDstSize.heightCm
+    ? embDstSize.widthCm / embDstSize.heightCm
+    : null;
+  const ratio = fileRatio || embRatio;
+  const shouldKeepRatio = !!fileRatio || document.getElementById("embKeepRatio").checked;
+  if (!shouldKeepRatio || !ratio) return;
   const w = parsePositiveNumber(embWidth.value);
   const h = parsePositiveNumber(embHeight.value);
-  if (embActiveInput === "width" && w) embHeight.value = (w / embRatio).toFixed(1);
-  if (embActiveInput === "height" && h) embWidth.value = (h * embRatio).toFixed(1);
+  if (embActiveInput === "width" && w) embHeight.value = (w / ratio).toFixed(1);
+  if (embActiveInput === "height" && h) embWidth.value = (h * ratio).toFixed(1);
 }
 
 function formatEmbroiderySize(width, height) {
