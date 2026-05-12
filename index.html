@@ -967,7 +967,7 @@ function calculateDTF() {
   result.style.display = "block";
 }
 
-let embRatio = null, embLoaded = false, embActiveInput = null, embStitchCount = null, embDstSize = null;
+let embRatio = null, embLoaded = false, embActiveInput = null, embStitchCount = null, embDstSize = null, embImageAnalysis = null;
 const embDstUpload = document.getElementById("embDstUpload");
 const embDstInfo = document.getElementById("embDstInfo");
 const embUpload = document.getElementById("embImageUpload");
@@ -989,6 +989,7 @@ function resetEmbroideryCalculatorFields() {
   embDstSize = null;
   embRatio = null;
   embActiveInput = null;
+  embImageAnalysis = null;
   embWidth.value = "";
   embHeight.value = "";
   embHeight.placeholder = "Автоматично";
@@ -1010,6 +1011,7 @@ function clearEmbDstFile() {
 function clearEmbImageFile() {
   embUpload.value = "";
   embLoaded = false;
+  embImageAnalysis = null;
   resetImageState(embPreview, "embPreviewWrap", "embImageInfo");
   document.getElementById("embRemoveImageFile").style.display = "none";
   resetEmbroideryCalculatorFields();
@@ -1540,6 +1542,10 @@ function analyzeDstFile(buffer) {
 
 embUpload.addEventListener("change", function() {
   const file = this.files[0];
+  embLoaded = false;
+  embImageAnalysis = null;
+  resetEmbOrderState();
+
   if (!file) {
     clearEmbImageFile();
     return;
@@ -1552,6 +1558,7 @@ embUpload.addEventListener("change", function() {
     if (!embDstSize) {
       embRatio = embPreview.naturalWidth / embPreview.naturalHeight;
     }
+    embImageAnalysis = analyzeEmbroideryImage(embPreview);
     document.getElementById("embPreviewWrap").style.display = "block";
     setImageInfo("embImageInfo", file, embPreview);
     if (!embWidth.value && !embHeight.value) {
@@ -1564,6 +1571,7 @@ embUpload.addEventListener("change", function() {
   };
   embPreview.onerror = function() {
     embLoaded = false;
+    embImageAnalysis = null;
     if (!embDstSize) embRatio = null;
     resetImageState(embPreview, "embPreviewWrap", "embImageInfo");
     URL.revokeObjectURL(url);
@@ -1630,6 +1638,76 @@ function getScaledDstStitches(width, height) {
   return Math.max(1, Math.round(embStitchCount * (desiredArea / originalArea)));
 }
 
+function clampNumber(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function analyzeEmbroideryImage(image) {
+  const canvas = document.createElement("canvas");
+  const sampleSize = 140;
+  canvas.width = sampleSize;
+  canvas.height = sampleSize;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return null;
+
+  context.clearRect(0, 0, sampleSize, sampleSize);
+  context.drawImage(image, 0, 0, sampleSize, sampleSize);
+
+  let imageData;
+  try {
+    imageData = context.getImageData(0, 0, sampleSize, sampleSize).data;
+  } catch (error) {
+    return null;
+  }
+
+  const activeMap = new Uint8Array(sampleSize * sampleSize);
+  const colors = new Set();
+  let activePixels = 0;
+  let edgePixels = 0;
+
+  for (let y = 0; y < sampleSize; y += 1) {
+    for (let x = 0; x < sampleSize; x += 1) {
+      const index = (y * sampleSize + x) * 4;
+      const red = imageData[index];
+      const green = imageData[index + 1];
+      const blue = imageData[index + 2];
+      const alpha = imageData[index + 3];
+      const isWhite = red > 245 && green > 245 && blue > 245;
+      const isActive = alpha > 32 && !isWhite;
+
+      if (!isActive) continue;
+
+      activeMap[y * sampleSize + x] = 1;
+      activePixels += 1;
+      colors.add(Math.floor(red / 48) + "-" + Math.floor(green / 48) + "-" + Math.floor(blue / 48));
+
+      if (x > 0 && !activeMap[y * sampleSize + x - 1]) edgePixels += 1;
+      if (y > 0 && !activeMap[(y - 1) * sampleSize + x]) edgePixels += 1;
+    }
+  }
+
+  const totalPixels = sampleSize * sampleSize;
+  const coverage = activePixels / totalPixels;
+  const edgeDensity = activePixels ? edgePixels / activePixels : 0;
+  const colorBoost = clampNumber(colors.size / 8, 0, 1) * 0.14;
+  const fillBoost = clampNumber(coverage / 0.35, 0, 1.4) * 0.45;
+  const detailBoost = clampNumber(edgeDensity / 0.20, 0, 1) * 0.16;
+  const stitchFactor = clampNumber(0.45 + fillBoost + colorBoost + detailBoost, 0.55, 1.25);
+
+  return {
+    coverage,
+    colors: colors.size,
+    stitchFactor
+  };
+}
+
+function getImageEstimatedStitches(width, height, baseDensity) {
+  const factor = embImageAnalysis && embImageAnalysis.stitchFactor
+    ? embImageAnalysis.stitchFactor
+    : 1;
+  return Math.max(1, Math.round(width * height * baseDensity * factor));
+}
+
 function calculateEmbroidery() {
   const w = parsePositiveNumber(embWidth.value);
   const h = parsePositiveNumber(embHeight.value);
@@ -1646,7 +1724,7 @@ function calculateEmbroidery() {
   const canEstimateFromImage = !hasDstStitches && embLoaded && w && h && density;
   const effectiveStitches = hasDstStitches
     ? getScaledDstStitches(w, h)
-    : ((canEstimateFromSize || canEstimateFromImage) ? Math.round(w * h * density) : null);
+    : (canEstimateFromImage ? getImageEstimatedStitches(w, h, density) : (canEstimateFromSize ? Math.round(w * h * density) : null));
   const dstStitchesWereScaled = hasDstStitches && embDstSize && w && h && effectiveStitches !== embStitchCount;
 
   if (!qty || !effectiveStitches) {
