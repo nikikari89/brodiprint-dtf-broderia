@@ -977,6 +977,9 @@ const embHeight = document.getElementById("embHeight");
 
 function resetEmbOrderState() {
   document.getElementById("embResult").style.display = "none";
+  document.getElementById("embError").style.display = "none";
+  document.getElementById("embOrderError").style.display = "none";
+  document.getElementById("embCopyStatus").textContent = "";
   lastOrders.emb = null;
   lastQuotes.emb = "";
 }
@@ -985,9 +988,17 @@ function clearEmbDstFile() {
   embDstUpload.value = "";
   embStitchCount = null;
   embDstSize = null;
+  embRatio = embLoaded && embPreview.naturalWidth && embPreview.naturalHeight
+    ? embPreview.naturalWidth / embPreview.naturalHeight
+    : null;
+  embActiveInput = null;
+  embWidth.value = "";
+  embHeight.value = "";
   embDstInfo.textContent = "";
   embHeight.placeholder = "Автоматично";
+  document.getElementById("embKeepRatio").checked = true;
   document.getElementById("embKeepRatio").disabled = false;
+  document.getElementById("embQty").value = "1";
   document.getElementById("embRemoveDstFile").style.display = "none";
   resetEmbOrderState();
 }
