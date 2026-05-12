@@ -778,6 +778,33 @@ function resetImageState(preview, previewWrapId, imageInfoId) {
   document.getElementById(imageInfoId).textContent = "";
 }
 
+function setDimensionValue(input, value) {
+  if (!input || !Number.isFinite(value) || value <= 0) return;
+  input.value = value.toFixed(1);
+}
+
+function syncDimensionPair(widthInput, heightInput, ratio, activeInput) {
+  if (!ratio || !Number.isFinite(ratio) || ratio <= 0) return;
+
+  const width = parsePositiveNumber(widthInput.value);
+  const height = parsePositiveNumber(heightInput.value);
+  const preferredInput = activeInput || (width ? "width" : (height ? "height" : null));
+
+  if (preferredInput === "height" && height) {
+    setDimensionValue(widthInput, height * ratio);
+    return;
+  }
+
+  if (width) {
+    setDimensionValue(heightInput, width / ratio);
+    return;
+  }
+
+  if (height) {
+    setDimensionValue(widthInput, height * ratio);
+  }
+}
+
 let dtfRatio = null, dtfLoaded = false, dtfActiveInput = null;
 const dtfUpload = document.getElementById("dtfImageUpload");
 const dtfPreview = document.getElementById("dtfPreview");
@@ -814,8 +841,9 @@ dtfUpload.addEventListener("change", function() {
     setImageInfo("dtfImageInfo", file, dtfPreview);
     if (!dtfWidth.value && !dtfHeight.value) {
       dtfWidth.value = 30;
-      dtfHeight.value = (30 / dtfRatio).toFixed(1);
+      dtfActiveInput = "width";
     }
+    updateDTFRatio();
     autoCalculateDTF();
     URL.revokeObjectURL(url);
   };
@@ -827,9 +855,29 @@ dtfUpload.addEventListener("change", function() {
   };
 });
 
-dtfWidth.addEventListener("input", function(){ dtfActiveInput = "width"; updateDTFRatio(); autoCalculateDTF(); });
-dtfHeight.addEventListener("input", function(){ dtfActiveInput = "height"; updateDTFRatio(); autoCalculateDTF(); });
-document.getElementById("dtfKeepRatio").addEventListener("change", autoCalculateDTF);
+function handleDtfWidthChange() {
+  dtfActiveInput = "width";
+  updateDTFRatio();
+  autoCalculateDTF();
+}
+
+function handleDtfHeightChange() {
+  dtfActiveInput = "height";
+  updateDTFRatio();
+  autoCalculateDTF();
+}
+
+["input", "change", "keyup", "blur"].forEach(function(eventName) {
+  dtfWidth.addEventListener(eventName, handleDtfWidthChange);
+  dtfHeight.addEventListener(eventName, handleDtfHeightChange);
+});
+document.getElementById("dtfKeepRatio").addEventListener("change", function() {
+  if (this.checked) {
+    dtfActiveInput = parsePositiveNumber(dtfWidth.value) ? "width" : "height";
+    updateDTFRatio();
+  }
+  autoCalculateDTF();
+});
 const dtfQtyInput = document.getElementById("dtfQty");
 ["input", "change", "keyup", "blur"].forEach(function(eventName) {
   dtfQtyInput.addEventListener(eventName, autoCalculateDTF);
@@ -858,10 +906,7 @@ function updateDTFServiceButtons() {
 
 function updateDTFRatio() {
   if (!document.getElementById("dtfKeepRatio").checked || !dtfRatio) return;
-  const w = parsePositiveNumber(dtfWidth.value);
-  const h = parsePositiveNumber(dtfHeight.value);
-  if (dtfActiveInput === "width" && w) dtfHeight.value = (w / dtfRatio).toFixed(1);
-  if (dtfActiveInput === "height" && h) dtfWidth.value = (h * dtfRatio).toFixed(1);
+  syncDimensionPair(dtfWidth, dtfHeight, dtfRatio, dtfActiveInput);
 }
 
 function calculateDTF() {
@@ -973,13 +1018,13 @@ function applyEmbroideryFileSize() {
     return;
   }
 
-  if (currentWidth && !currentHeight) {
+  if (currentWidth) {
     embActiveInput = "width";
     updateEmbRatio();
     return;
   }
 
-  if (!currentWidth && currentHeight) {
+  if (currentHeight) {
     embActiveInput = "height";
     updateEmbRatio();
   }
@@ -1497,8 +1542,9 @@ embUpload.addEventListener("change", function() {
     setImageInfo("embImageInfo", file, embPreview);
     if (!embWidth.value && !embHeight.value) {
       embWidth.value = 10;
-      embHeight.value = (10 / (embDstSize ? embDstSize.widthCm / embDstSize.heightCm : embRatio)).toFixed(1);
+      embActiveInput = "width";
     }
+    updateEmbRatio();
     autoCalculateEmbroidery();
     URL.revokeObjectURL(url);
   };
@@ -1510,9 +1556,29 @@ embUpload.addEventListener("change", function() {
   };
 });
 
-embWidth.addEventListener("input", function(){ embActiveInput = "width"; updateEmbRatio(); autoCalculateEmbroidery(); });
-embHeight.addEventListener("input", function(){ embActiveInput = "height"; updateEmbRatio(); autoCalculateEmbroidery(); });
-document.getElementById("embKeepRatio").addEventListener("change", autoCalculateEmbroidery);
+function handleEmbWidthChange() {
+  embActiveInput = "width";
+  updateEmbRatio();
+  autoCalculateEmbroidery();
+}
+
+function handleEmbHeightChange() {
+  embActiveInput = "height";
+  updateEmbRatio();
+  autoCalculateEmbroidery();
+}
+
+["input", "change", "keyup", "blur"].forEach(function(eventName) {
+  embWidth.addEventListener(eventName, handleEmbWidthChange);
+  embHeight.addEventListener(eventName, handleEmbHeightChange);
+});
+document.getElementById("embKeepRatio").addEventListener("change", function() {
+  if (this.checked) {
+    embActiveInput = parsePositiveNumber(embWidth.value) ? "width" : "height";
+    updateEmbRatio();
+  }
+  autoCalculateEmbroidery();
+});
 const embQtyInput = document.getElementById("embQty");
 ["input", "change", "keyup", "blur"].forEach(function(eventName) {
   embQtyInput.addEventListener(eventName, autoCalculateEmbroidery);
@@ -1527,10 +1593,7 @@ function updateEmbRatio() {
   const ratio = fileRatio || embRatio;
   const shouldKeepRatio = !!fileRatio || document.getElementById("embKeepRatio").checked;
   if (!shouldKeepRatio || !ratio) return;
-  const w = parsePositiveNumber(embWidth.value);
-  const h = parsePositiveNumber(embHeight.value);
-  if (embActiveInput === "width" && w) embHeight.value = (w / ratio).toFixed(1);
-  if (embActiveInput === "height" && h) embWidth.value = (h * ratio).toFixed(1);
+  syncDimensionPair(embWidth, embHeight, ratio, embActiveInput);
 }
 
 function formatEmbroiderySize(width, height) {
