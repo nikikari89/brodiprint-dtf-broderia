@@ -181,6 +181,15 @@
       background: repeating-conic-gradient(#ddd 0% 25%, #fff 0% 50%) 50% / 20px 20px;
     }
 
+    .pdf-preview {
+      display: none;
+      width: 100%;
+      height: 320px;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      background: #fff;
+    }
+
     .image-info {
       font-size: 13px;
       color: #666;
@@ -401,6 +410,10 @@
         max-height: 220px;
       }
 
+      .pdf-preview {
+        height: 260px;
+      }
+
       label {
         margin: 10px 0 5px;
       }
@@ -471,6 +484,7 @@
 
         <div id="dtfPreviewWrap" class="preview-wrap">
           <img id="dtfPreview" alt="DTF preview">
+          <iframe id="dtfPdfPreview" class="pdf-preview" title="PDF preview"></iframe>
           <div id="dtfImageInfo" class="image-info"></div>
         </div>
       </div>
@@ -859,6 +873,28 @@ function setAcceptedFileInfo(preview, previewWrapId, infoId, file, message) {
   document.getElementById(infoId).textContent = "Файл: " + file.name + " | " + message;
 }
 
+function showDtfPdfPreview(file) {
+  const pdfPreview = document.getElementById("dtfPdfPreview");
+  if (!pdfPreview) return "";
+
+  const url = URL.createObjectURL(file);
+  pdfPreview.src = url;
+  pdfPreview.style.display = "block";
+  return url;
+}
+
+function resetDtfPdfPreview() {
+  const pdfPreview = document.getElementById("dtfPdfPreview");
+  if (!pdfPreview) return;
+
+  if (pdfPreview.dataset.objectUrl) {
+    URL.revokeObjectURL(pdfPreview.dataset.objectUrl);
+  }
+  pdfPreview.removeAttribute("src");
+  pdfPreview.dataset.objectUrl = "";
+  pdfPreview.style.display = "none";
+}
+
 function resetImageState(preview, previewWrapId, imageInfoId) {
   preview.removeAttribute("src");
   preview.style.display = "";
@@ -906,6 +942,7 @@ function clearDtfFile() {
   dtfUpload.value = "";
   dtfLoaded = false;
   dtfRatio = null;
+  resetDtfPdfPreview();
   resetImageState(dtfPreview, "dtfPreviewWrap", "dtfImageInfo");
   document.getElementById("dtfRemoveFile").style.display = "none";
   document.getElementById("dtfResult").style.display = "none";
@@ -917,6 +954,7 @@ dtfUpload.addEventListener("change", async function() {
   const file = this.files[0];
   dtfLoaded = false;
   dtfRatio = null;
+  resetDtfPdfPreview();
   resetImageState(dtfPreview, "dtfPreviewWrap", "dtfImageInfo");
   document.getElementById("dtfResult").style.display = "none";
   lastOrders.dtf = null;
@@ -929,6 +967,8 @@ dtfUpload.addEventListener("change", async function() {
   document.getElementById("dtfRemoveFile").style.display = "inline-block";
 
   if (isPdfFile(file)) {
+    const pdfUrl = showDtfPdfPreview(file);
+    document.getElementById("dtfPreviewWrap").style.display = "block";
     try {
       const pdfSize = await readPdfPageSize(file);
       if (pdfSize) {
@@ -945,6 +985,11 @@ dtfUpload.addEventListener("change", async function() {
       }
     } catch (error) {
       setAcceptedFileInfo(dtfPreview, "dtfPreviewWrap", "dtfImageInfo", file, "PDF файлът е приет, но размерът не може да се прочете автоматично. Въведете ширина и височина ръчно.");
+    }
+    const pdfPreview = document.getElementById("dtfPdfPreview");
+    if (pdfPreview) {
+      pdfPreview.dataset.objectUrl = pdfUrl;
+      pdfPreview.style.display = "block";
     }
     autoCalculateDTF();
     return;
