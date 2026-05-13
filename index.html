@@ -944,8 +944,15 @@ function clearDtfFile() {
   dtfRatio = null;
   resetDtfPdfPreview();
   resetImageState(dtfPreview, "dtfPreviewWrap", "dtfImageInfo");
+  dtfWidth.value = "";
+  dtfHeight.value = "";
+  dtfActiveInput = null;
+  document.getElementById("dtfKeepRatio").checked = true;
   document.getElementById("dtfRemoveFile").style.display = "none";
   document.getElementById("dtfResult").style.display = "none";
+  document.getElementById("dtfError").style.display = "none";
+  document.getElementById("dtfOrderError").style.display = "none";
+  document.getElementById("dtfCopyStatus").style.display = "none";
   lastOrders.dtf = null;
   lastQuotes.dtf = "";
 }
