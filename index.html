@@ -460,8 +460,8 @@
       <div class="media-panel">
         <div class="upload-box">
           <strong>Качете изображение за DTF печат</strong>
-          <div class="image-info">По желание. Финалната цена се потвърждава след преглед на файла.</div>
-          <input id="dtfImageUpload" name="fi-file-dtf_file" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml">
+          <div class="image-info">По желание. Приемат се PNG, JPG, SVG, PDF, AI, EPS, CDR и други файлове. Ако файлът не може да се визуализира, въведете размера ръчно.</div>
+          <input id="dtfImageUpload" name="fi-file-dtf_file" type="file">
           <button class="remove-file" type="button" id="dtfRemoveFile">Изтрий качения файл</button>
         </div>
 
@@ -568,8 +568,8 @@
 
         <div class="upload-box">
           <strong>Качете лого / изображение</strong>
-          <div class="image-info">По желание. Финалната цена се потвърждава след преглед на файла.</div>
-          <input id="embImageUpload" name="fi-file-emb_file" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml">
+          <div class="image-info">По желание. Приемат се PNG, JPG, SVG, PDF, AI, EPS, CDR и други файлове. Ако файлът не може да се визуализира, въведете размера ръчно.</div>
+          <input id="embImageUpload" name="fi-file-emb_file" type="file">
           <button class="remove-file" type="button" id="embRemoveImageFile">Изтрий качения файл</button>
         </div>
 
@@ -796,8 +796,21 @@ function setImageInfo(elementId, file, image) {
   );
 }
 
+function isPreviewableImage(file) {
+  const extension = getFileExtension(file.name);
+  return file.type.startsWith("image/") || ["png", "jpg", "jpeg", "webp", "svg", "gif", "bmp"].includes(extension);
+}
+
+function setAcceptedFileInfo(preview, previewWrapId, infoId, file, message) {
+  preview.removeAttribute("src");
+  preview.style.display = "none";
+  document.getElementById(previewWrapId).style.display = "block";
+  document.getElementById(infoId).textContent = "Файл: " + file.name + " | " + message;
+}
+
 function resetImageState(preview, previewWrapId, imageInfoId) {
   preview.removeAttribute("src");
+  preview.style.display = "";
   document.getElementById(previewWrapId).style.display = "none";
   document.getElementById(imageInfoId).textContent = "";
 }
@@ -851,11 +864,25 @@ function clearDtfFile() {
 
 dtfUpload.addEventListener("change", function() {
   const file = this.files[0];
+  dtfLoaded = false;
+  dtfRatio = null;
+  resetImageState(dtfPreview, "dtfPreviewWrap", "dtfImageInfo");
+  document.getElementById("dtfResult").style.display = "none";
+  lastOrders.dtf = null;
+  lastQuotes.dtf = "";
+
   if (!file) {
     clearDtfFile();
     return;
   }
   document.getElementById("dtfRemoveFile").style.display = "inline-block";
+
+  if (!isPreviewableImage(file)) {
+    setAcceptedFileInfo(dtfPreview, "dtfPreviewWrap", "dtfImageInfo", file, "Файлът е приет. Въведете ширина и височина, за да се изчисли DTF цената.");
+    autoCalculateDTF();
+    return;
+  }
+
   const url = URL.createObjectURL(file);
   dtfPreview.src = url;
   dtfPreview.onload = function() {
@@ -1582,6 +1609,8 @@ embUpload.addEventListener("change", function() {
   const file = this.files[0];
   embLoaded = false;
   embImageAnalysis = null;
+  if (!embDstSize) embRatio = null;
+  resetImageState(embPreview, "embPreviewWrap", "embImageInfo");
   resetEmbOrderState();
 
   if (!file) {
@@ -1589,6 +1618,14 @@ embUpload.addEventListener("change", function() {
     return;
   }
   document.getElementById("embRemoveImageFile").style.display = "inline-block";
+
+  if (!isPreviewableImage(file)) {
+    embLoaded = true;
+    setAcceptedFileInfo(embPreview, "embPreviewWrap", "embImageInfo", file, "Файлът е приет за преглед. Въведете ширина и височина, за да се изчисли ориентировъчна цена.");
+    autoCalculateEmbroidery();
+    return;
+  }
+
   const url = URL.createObjectURL(file);
   embPreview.src = url;
   embPreview.onload = function() {
