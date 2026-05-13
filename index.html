@@ -543,6 +543,8 @@
       <div class="result-line"><span>База DTF:</span><strong id="dtfRateResult">-</strong></div>
       <div class="result-line"><span>Количество:</span><strong id="dtfQtyResult">-</strong></div>
       <div class="result-line"><span>Цена за 1 бр.:</span><strong id="dtfPriceOneResult">-</strong></div>
+      <div class="result-line" id="dtfDiscountRow"><span>Отстъпка за количество:</span><strong id="dtfDiscountResult">-</strong></div>
+      <div class="result-line" id="dtfDiscountPriceRow"><span>Цена след отстъпка за 1 бр.:</span><strong id="dtfDiscountPriceResult">-</strong></div>
       <div class="result-line total"><span>Крайна цена:</span><strong id="dtfTotalResult">-</strong></div>
       <div class="note">Всички цени са без ДДС.</div>
       <button class="copy" type="submit" id="dtfEmail" data-order-type="dtf">Изпрати заявка</button>
@@ -640,6 +642,8 @@
       <div class="result-line"><span>Цена по бодове за 1 бр.:</span><strong id="embStitchPriceResult">-</strong></div>
       <div class="result-line" id="embMinimumRow"><span>Минимум за 1 бр.:</span><strong id="embMinimumResult">-</strong></div>
       <div class="result-line"><span>Реална цена:</span><strong id="embStitchTotalResult">-</strong></div>
+      <div class="result-line" id="embDiscountRow"><span>Отстъпка за количество:</span><strong id="embDiscountResult">-</strong></div>
+      <div class="result-line" id="embDiscountTotalRow"><span>Цена след отстъпка:</span><strong id="embDiscountTotalResult">-</strong></div>
       <div class="result-line total"><span>Крайна ориентировъчна цена:</span><strong id="embTotalResult">-</strong></div>
       <div class="note">Всички цени са без ДДС.</div>
       <button class="copy" type="submit" id="embEmail" data-order-type="emb">Изпрати заявка</button>
@@ -728,6 +732,26 @@ const DTF_TYPES = {
 
 const EMB_PRICE_PER_THOUSAND = 0.80;
 const EMB_MIN_PRICE = 5;
+
+function getQuantityDiscount(type, quantity) {
+  if (type === "dtf") {
+    if (quantity >= 1000) return 18;
+    if (quantity >= 500) return 15;
+    if (quantity >= 200) return 12;
+    if (quantity >= 100) return 8;
+    if (quantity >= 50) return 5;
+    return 0;
+  }
+
+  if (type === "emb") {
+    if (quantity >= 500) return 10;
+    if (quantity >= 200) return 10;
+    if (quantity >= 100) return 6;
+    if (quantity >= 50) return 3;
+  }
+
+  return 0;
+}
 
 const SUPABASE_URL = "https://qsgvffdersemdtxgmtvi.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFzZ3ZmZmRlcnNlbWR0eGdtdHZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgyNTg3NzMsImV4cCI6MjA5MzgzNDc3M30.1KVHJ3jLr3O9DRB0bJzqGHbxn0A2fq9OEfCMNmNyd7k";
@@ -933,7 +957,11 @@ function calculateDTF() {
     : areaM2 * DTF_PRICE_PER_M2 + dtfTypeSettings.handling;
   const minimumPrice = selectedMode === "print-only" ? DTF_PRINT_ONLY_MIN : dtfTypeSettings.min;
   const price = Math.max(areaPrice, minimumPrice);
-  const total = price * qty;
+  const subtotal = price * qty;
+  const discountPercent = getQuantityDiscount("dtf", qty);
+  const discountAmount = subtotal * (discountPercent / 100);
+  const total = subtotal - discountAmount;
+  const discountedPrice = total / qty;
   const sizeText = w && h ? w.toFixed(1) + " × " + h.toFixed(1) + " см" : "-";
   const areaText = areaM2 ? areaM2.toFixed(4) + " м²" : "по минимална цена";
   const totalAreaText = areaM2 ? (areaM2 * qty).toFixed(4) + " м²" : "-";
@@ -941,6 +969,8 @@ function calculateDTF() {
     ? DTF_PRINT_ONLY_PRICE_PER_M2.toFixed(2) + " €/м² без труд"
     : DTF_PRICE_PER_M2.toFixed(2) + " €/м² + труд";
   const priceOneText = price.toFixed(2) + " €";
+  const discountedPriceText = discountedPrice.toFixed(2) + " €";
+  const discountText = discountPercent ? "-" + discountPercent + "% (" + discountAmount.toFixed(2) + " €)" : "няма";
   const totalText = total.toFixed(2) + " €";
   const fileName = dtfUpload.files[0] ? dtfUpload.files[0].name : "";
 
@@ -951,13 +981,21 @@ function calculateDTF() {
   document.getElementById("dtfRateResult").innerText = rateText;
   document.getElementById("dtfQtyResult").innerText = qty + " бр.";
   document.getElementById("dtfPriceOneResult").innerText = priceOneText;
+  document.getElementById("dtfDiscountResult").innerText = discountText;
+  document.getElementById("dtfDiscountRow").style.display = discountPercent ? "flex" : "none";
+  document.getElementById("dtfDiscountPriceResult").innerText = discountedPriceText;
+  document.getElementById("dtfDiscountPriceRow").style.display = discountPercent ? "flex" : "none";
   document.getElementById("dtfTotalResult").innerText = totalText;
-  lastQuotes.dtf = buildQuoteText(selectedModeText + " - " + selectedTypeText, sizeText, qty, priceOneText, totalText, fileName);
+  lastQuotes.dtf = buildQuoteText(selectedModeText + " - " + selectedTypeText, sizeText, qty, priceOneText, totalText, fileName, "", {
+    discount: discountPercent ? discountText : "",
+    discountedPrice: discountPercent ? discountedPriceText : ""
+  });
   lastOrders.dtf = {
     service: selectedModeText + " - " + selectedTypeText,
     size: sizeText,
     qty,
     priceOne: priceOneText,
+    discount: discountPercent ? discountText : "",
     total: totalText,
     fileName
   };
@@ -1750,12 +1788,17 @@ function calculateEmbroidery() {
   const minimumOne = EMB_MIN_PRICE;
   const stitchTotal = priceBeforeMinimum * qty;
   const minimumApplies = qty === 1 && priceBeforeMinimum < minimumOne;
-  const total = minimumApplies ? minimumOne : stitchTotal;
+  const subtotal = minimumApplies ? minimumOne : stitchTotal;
+  const discountPercent = getQuantityDiscount("emb", qty);
+  const discountAmount = subtotal * (discountPercent / 100);
+  const total = subtotal - discountAmount;
   const sizeText = formatEmbroiderySize(w, h);
   const rateText = pricePerThousand.toFixed(2) + " €";
   const stitchPriceText = priceBeforeMinimum.toFixed(2) + " €";
   const minimumText = minimumOne.toFixed(2) + " €";
   const stitchTotalText = stitchTotal.toFixed(2) + " €";
+  const discountText = discountPercent ? "-" + discountPercent + "% (" + discountAmount.toFixed(2) + " €)" : "няма";
+  const discountTotalText = total.toFixed(2) + " €";
   const totalText = total.toFixed(2) + " €";
   const fileName = embUpload.files[0] ? embUpload.files[0].name : "";
   const dstFileName = embDstUpload.files[0] ? embDstUpload.files[0].name : "";
@@ -1779,12 +1822,18 @@ function calculateEmbroidery() {
   document.getElementById("embMinimumResult").innerText = minimumText;
   document.getElementById("embMinimumRow").style.display = minimumApplies ? "flex" : "none";
   document.getElementById("embStitchTotalResult").innerText = stitchTotalText;
+  document.getElementById("embDiscountResult").innerText = discountText;
+  document.getElementById("embDiscountRow").style.display = discountPercent ? "flex" : "none";
+  document.getElementById("embDiscountTotalResult").innerText = discountTotalText;
+  document.getElementById("embDiscountTotalRow").style.display = discountPercent ? "flex" : "none";
   document.getElementById("embTotalResult").innerText = totalText;
   lastQuotes.emb = buildQuoteText("Бродерия", sizeText, qty, stitchPriceText, totalText, dstFileName || fileName, formatInteger(effectiveStitches), {
     rate: rateText,
     stitchPrice: stitchPriceText,
     minimumOne: minimumApplies ? minimumText : "",
     stitchTotal: stitchTotalText,
+    discount: discountPercent ? discountText : "",
+    discountTotal: discountPercent ? discountTotalText : "",
     showUnitPrice: qty === 1,
     method: methodText,
     area: area ? area.toFixed(1) + " кв.см" : ""
@@ -1798,6 +1847,7 @@ function calculateEmbroidery() {
     minimumOne: minimumApplies ? minimumText : "",
     priceOne: qty === 1 ? stitchPriceText : "",
     stitchTotal: stitchTotalText,
+    discount: discountPercent ? discountText : "",
     minimumTotal: "",
     total: totalText,
     fileName: dstFileName || fileName,
@@ -1820,15 +1870,23 @@ function buildQuoteText(service, size, qty, priceOne, total, fileName, stitches,
     "Файл: " + (fileName || "не е качен")
   ];
 
-  if (!embroideryDetails || embroideryDetails.showUnitPrice) {
+  if (!embroideryDetails || embroideryDetails.showUnitPrice !== false) {
     lines.splice(4, 0, "Цена за 1 бр.: " + priceOne + " без ДДС");
+  }
+
+  if (embroideryDetails && embroideryDetails.discount) {
+    lines.splice(5, 0, "Отстъпка за количество: " + embroideryDetails.discount);
+  }
+
+  if (embroideryDetails && embroideryDetails.discountedPrice) {
+    lines.splice(6, 0, "Цена след отстъпка за 1 бр.: " + embroideryDetails.discountedPrice + " без ДДС");
   }
 
   if (stitches) {
     lines.push("Бодове: " + stitches);
   }
 
-  if (embroideryDetails) {
+  if (embroideryDetails && embroideryDetails.method) {
     lines.push("Метод: " + embroideryDetails.method);
     if (embroideryDetails.area) {
       lines.push("Площ: " + embroideryDetails.area);
@@ -1841,6 +1899,12 @@ function buildQuoteText(service, size, qty, priceOne, total, fileName, stitches,
       lines.push("Минимум за 1 бр.: " + embroideryDetails.minimumOne + " без ДДС");
     }
     lines.push("Общо по бодове: " + embroideryDetails.stitchTotal + " без ДДС");
+    if (embroideryDetails.discount) {
+      lines.push("Отстъпка за количество: " + embroideryDetails.discount);
+    }
+    if (embroideryDetails.discountTotal) {
+      lines.push("Цена след отстъпка: " + embroideryDetails.discountTotal + " без ДДС");
+    }
   }
 
   lines.push("Цената е ориентировъчна и е без ДДС. Финална цена се потвърждава след преглед на файла.");
