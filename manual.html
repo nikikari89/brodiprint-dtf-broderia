@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BrodiPrint ръчна оферта</title>
+  <meta name="description" content="Ръчен калкулатор за BrodiPrint оферти с качване на файл и изпращане на заявка.">
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #101010, #2c2c2c);
+      color: #fff;
+      padding: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 980px;
+      background: #fff;
+      color: #111;
+      border-radius: 24px;
+      padding: 24px;
+      box-shadow: 0 24px 70px rgba(0,0,0,0.38);
+    }
+
+    .brand {
+      text-align: center;
+      margin-bottom: 18px;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 30px;
+      line-height: 1.1;
+    }
+
+    .brand span {
+      display: block;
+      margin-top: 6px;
+      color: #666;
+      font-size: 14px;
+    }
+
+    .top-link {
+      display: inline-block;
+      margin-bottom: 14px;
+      color: #111;
+      font-weight: 700;
+      text-decoration: underline;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .upload-box {
+      border: 2px dashed #bbb;
+      border-radius: 18px;
+      padding: 18px;
+      text-align: center;
+      background: #fafafa;
+      margin-bottom: 16px;
+    }
+
+    .upload-box input {
+      width: 100%;
+      margin-top: 10px;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      background: #fff;
+    }
+
+    .remove-file {
+      display: none;
+      width: auto;
+      margin: 12px auto 0;
+      padding: 8px 14px;
+      border: 1px solid #d8d8d8;
+      border-radius: 10px;
+      background: #fff;
+      color: #111;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .preview-wrap {
+      display: none;
+      margin: 16px 0;
+      text-align: center;
+      background: #f3f3f3;
+      border-radius: 18px;
+      padding: 14px;
+    }
+
+    .preview-wrap img {
+      max-width: 100%;
+      max-height: 300px;
+      object-fit: contain;
+      border-radius: 12px;
+      background: repeating-conic-gradient(#ddd 0% 25%, #fff 0% 50%) 50% / 20px 20px;
+    }
+
+    .info {
+      font-size: 13px;
+      color: #666;
+      line-height: 1.4;
+      margin-top: 8px;
+      word-break: break-word;
+    }
+
+    label {
+      display: block;
+      font-weight: 700;
+      margin: 12px 0 6px;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      padding: 13px;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      font-size: 16px;
+      outline: none;
+      background: #fff;
+      font-family: inherit;
+    }
+
+    textarea {
+      min-height: 82px;
+      resize: vertical;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: #111;
+      box-shadow: 0 0 0 3px rgba(17,17,17,0.08);
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .calc, .copy {
+      width: 100%;
+      margin-top: 18px;
+      padding: 15px;
+      border: none;
+      border-radius: 14px;
+      background: #111;
+      color: #fff;
+      font-size: 17px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .copy {
+      margin-top: 12px;
+      color: #111;
+      background: #f3f3f3;
+      border: 1px solid #d8d8d8;
+    }
+
+    .result {
+      display: none;
+      margin-top: 16px;
+      padding: 16px;
+      background: #f4f4f4;
+      border-radius: 16px;
+    }
+
+    .line {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 9px 0;
+      border-bottom: 1px solid #ddd;
+      font-size: 15px;
+    }
+
+    .line strong {
+      text-align: right;
+      max-width: 62%;
+    }
+
+    .line.total {
+      border-bottom: none;
+      font-size: 21px;
+      font-weight: 900;
+    }
+
+    .note {
+      margin-top: 12px;
+      color: #666;
+      font-size: 12px;
+      text-align: center;
+    }
+
+    .error {
+      display: none;
+      margin-top: 12px;
+      color: #b00020;
+      font-weight: 800;
+      text-align: center;
+    }
+
+    .status {
+      display: none;
+      margin-top: 10px;
+      color: #0b7a24;
+      font-size: 13px;
+      text-align: center;
+    }
+
+    @media (max-width: 780px) {
+      body {
+        padding: 0;
+        align-items: stretch;
+      }
+
+      .app {
+        min-height: 100vh;
+        border-radius: 0;
+        padding: 16px;
+      }
+
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .brand h1 {
+        font-size: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+<form id="manualOrderForm" name="brodiprint-manual-order" class="app" method="POST" action="https://forminit.com/f/0w1vrsbfz7h" enctype="multipart/form-data">
+  <a class="top-link" href="index.html">Назад към основния калкулатор</a>
+
+  <div class="brand">
+    <h1>BrodiPrint ръчна оферта</h1>
+    <span>Ти въвеждаш цената | всички цени са без ДДС</span>
+  </div>
+
+  <div class="layout">
+    <div>
+      <div class="upload-box">
+        <strong>Качете файл към офертата</strong>
+        <div class="info">Приемат се всякакви файлове. Ако файлът е изображение, ще се покаже преглед.</div>
+        <input id="manualFile" name="fi-file-manual_file" type="file">
+        <button class="remove-file" type="button" id="manualRemoveFile">Изтрий качения файл</button>
+        <div id="manualFileInfo" class="info"></div>
+      </div>
+
+      <div id="manualPreviewWrap" class="preview-wrap">
+        <img id="manualPreview" alt="Преглед на качения файл">
+        <div id="manualImageInfo" class="info"></div>
+      </div>
+    </div>
+
+    <div>
+      <label for="manualService">Услуга</label>
+      <select id="manualService">
+        <option value="DTF печат + поставяне върху дреха">DTF печат + поставяне върху дреха</option>
+        <option value="Само DTF печат без труд">Само DTF печат без труд</option>
+        <option value="Бродерия">Бродерия</option>
+        <option value="Друго">Друго</option>
+      </select>
+
+      <label for="manualDescription">Описание на офертата</label>
+      <textarea id="manualDescription" placeholder="Напр. лого отпред на работна блуза, голяма щампа, допълнителна услуга..."></textarea>
+
+      <div class="row">
+        <div>
+          <label for="manualWidth">Ширина в см</label>
+          <input id="manualWidth" type="number" inputmode="decimal" step="0.1" placeholder="по желание">
+        </div>
+        <div>
+          <label for="manualHeight">Височина в см</label>
+          <input id="manualHeight" type="number" inputmode="decimal" step="0.1" placeholder="по желание">
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="manualQty">Количество</label>
+          <input id="manualQty" type="number" inputmode="numeric" min="1" value="1">
+        </div>
+        <div>
+          <label for="manualPriceOne">Цена за 1 бр. (€)</label>
+          <input id="manualPriceOne" type="number" inputmode="decimal" step="0.01" placeholder="напр. 4.50">
+        </div>
+      </div>
+
+      <label for="manualDiscount">Отстъпка (%)</label>
+      <input id="manualDiscount" type="number" inputmode="decimal" min="0" max="100" step="0.1" value="0">
+
+      <div class="row">
+        <div>
+          <label for="manualClientName">Име</label>
+          <input id="manualClientName" type="text" autocomplete="name" placeholder="Вашето име">
+        </div>
+        <div>
+          <label for="manualClientPhone">Телефон</label>
+          <input id="manualClientPhone" type="tel" autocomplete="tel" placeholder="Телефон за връзка">
+        </div>
+      </div>
+
+      <label for="manualClientEmail">Имейл</label>
+      <input id="manualClientEmail" type="email" autocomplete="email" placeholder="Имейл за отговор">
+
+      <button class="calc" type="button" id="manualCalculate">Изчисли ръчна оферта</button>
+      <div id="manualError" class="error">Въведете количество и цена за 1 бр.</div>
+      <div id="manualOrderError" class="error">Въведете име и поне телефон или имейл, за да изпратите заявката.</div>
+
+      <div id="manualResult" class="result">
+        <div class="line"><span>Услуга:</span><strong id="manualServiceResult">-</strong></div>
+        <div class="line"><span>Описание:</span><strong id="manualDescriptionResult">-</strong></div>
+        <div class="line"><span>Размер:</span><strong id="manualSizeResult">-</strong></div>
+        <div class="line"><span>Количество:</span><strong id="manualQtyResult">-</strong></div>
+        <div class="line"><span>Цена за 1 бр.:</span><strong id="manualPriceOneResult">-</strong></div>
+        <div class="line" id="manualDiscountRow"><span>Отстъпка:</span><strong id="manualDiscountResult">-</strong></div>
+        <div class="line total"><span>Крайна цена:</span><strong id="manualTotalResult">-</strong></div>
+        <div class="note">Всички цени са без ДДС. Финалната цена се потвърждава след преглед на файла.</div>
+        <button class="copy" type="submit" id="manualEmail">Изпрати заявка</button>
+        <button class="copy" type="button" id="manualCopy">Копирай оферта</button>
+        <div id="manualCopyStatus" class="status"></div>
+      </div>
+    </div>
+  </div>
+
+  <input type="hidden" name="fi-text-phone">
+  <input type="hidden" name="fi-text-service">
+  <input type="hidden" name="fi-text-print_size">
+  <input type="hidden" name="fi-text-quantity">
+  <input type="hidden" name="fi-text-price_one">
+  <input type="hidden" name="fi-text-total_price">
+  <input type="hidden" name="fi-text-uploaded_file_name">
+  <input type="hidden" name="fi-text-quote">
+  <input type="hidden" name="fi-sender-fullName">
+  <input type="hidden" name="fi-sender-email">
+</form>
+
+<script>
+const SUPABASE_URL = "https://qsgvffdersemdtxgmtvi.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFzZ3ZmZmRlcnNlbWR0eGdtdHZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgyNTg3NzMsImV4cCI6MjA5MzgzNDc3M30.1KVHJ3jLr3O9DRB0bJzqGHbxn0A2fq9OEfCMNmNyd7k";
+const SUPABASE_BUCKET = "order-files";
+
+let lastQuote = "";
+let lastOrder = null;
+
+const fileInput = document.getElementById("manualFile");
+const preview = document.getElementById("manualPreview");
+const previewWrap = document.getElementById("manualPreviewWrap");
+const fileInfo = document.getElementById("manualFileInfo");
+const imageInfo = document.getElementById("manualImageInfo");
+const removeFileButton = document.getElementById("manualRemoveFile");
+
+function parsePositiveNumber(value) {
+  const number = Number(String(value).replace(",", "."));
+  return Number.isFinite(number) && number > 0 ? number : 0;
+}
+
+function parseNonNegativeNumber(value) {
+  const number = Number(String(value).replace(",", "."));
+  return Number.isFinite(number) && number >= 0 ? number : 0;
+}
+
+function parsePositiveInteger(value) {
+  const number = parseInt(value, 10);
+  return Number.isFinite(number) && number > 0 ? number : 0;
+}
+
+function isPreviewableImage(file) {
+  return file && file.type && file.type.startsWith("image/");
+}
+
+function resetFilePreview() {
+  preview.removeAttribute("src");
+  previewWrap.style.display = "none";
+  fileInfo.textContent = "";
+  imageInfo.textContent = "";
+  removeFileButton.style.display = "none";
+}
+
+function clearManualFile() {
+  fileInput.value = "";
+  resetFilePreview();
+  calculateManual(false);
+}
+
+function getFileName() {
+  return fileInput.files[0] ? fileInput.files[0].name : "";
+}
+
+fileInput.addEventListener("change", function() {
+  resetFilePreview();
+  const file = fileInput.files[0];
+  if (!file) {
+    calculateManual(false);
+    return;
+  }
+
+  removeFileButton.style.display = "block";
+  fileInfo.textContent = "Файл: " + file.name;
+
+  if (!isPreviewableImage(file)) {
+    fileInfo.textContent = "Файлът е приет: " + file.name;
+    calculateManual(false);
+    return;
+  }
+
+  const url = URL.createObjectURL(file);
+  preview.onload = function() {
+    previewWrap.style.display = "block";
+    imageInfo.textContent = "Файл: " + file.name + " | Размер: " + preview.naturalWidth + " × " + preview.naturalHeight + " px";
+    URL.revokeObjectURL(url);
+    calculateManual(false);
+  };
+  preview.onerror = function() {
+    previewWrap.style.display = "none";
+    fileInfo.textContent = "Файлът е приет: " + file.name;
+    URL.revokeObjectURL(url);
+    calculateManual(false);
+  };
+  preview.src = url;
+});
+
+removeFileButton.addEventListener("click", clearManualFile);
+
+function getSizeText() {
+  const width = parsePositiveNumber(document.getElementById("manualWidth").value);
+  const height = parsePositiveNumber(document.getElementById("manualHeight").value);
+  if (width && height) return width.toFixed(1) + " × " + height.toFixed(1) + " см";
+  if (width) return width.toFixed(1) + " см ширина";
+  if (height) return height.toFixed(1) + " см височина";
+  return "не е въведен";
+}
+
+function buildQuote(order) {
+  const lines = [
+    "BrodiPrint ръчна оферта",
+    "Услуга: " + order.service,
+    "Описание: " + (order.description || "няма"),
+    "Размер: " + order.size,
+    "Количество: " + order.qty + " бр.",
+    "Цена за 1 бр.: " + order.priceOne + " без ДДС"
+  ];
+
+  if (order.discount) {
+    lines.push("Отстъпка: " + order.discount);
+  }
+
+  lines.push("Крайна цена: " + order.total + " без ДДС");
+  lines.push("Файл: " + (order.fileName || "не е качен"));
+  lines.push("Цената е ориентировъчна и е без ДДС. Финалната цена се потвърждава след преглед на файла.");
+  return lines.join("\n");
+}
+
+function calculateManual(showErrors = true) {
+  const service = document.getElementById("manualService").value;
+  const description = document.getElementById("manualDescription").value.trim();
+  const qty = parsePositiveInteger(document.getElementById("manualQty").value);
+  const price = parsePositiveNumber(document.getElementById("manualPriceOne").value);
+  const discountPercent = Math.min(100, parseNonNegativeNumber(document.getElementById("manualDiscount").value));
+  const result = document.getElementById("manualResult");
+  const error = document.getElementById("manualError");
+
+  if (!qty || !price) {
+    lastQuote = "";
+    lastOrder = null;
+    result.style.display = "none";
+    error.style.display = showErrors ? "block" : "none";
+    return null;
+  }
+
+  const subtotal = qty * price;
+  const discountAmount = subtotal * (discountPercent / 100);
+  const total = subtotal - discountAmount;
+  const discountText = discountPercent ? "-" + discountPercent.toFixed(discountPercent % 1 ? 1 : 0) + "% (" + discountAmount.toFixed(2) + " €)" : "";
+
+  const order = {
+    service,
+    description,
+    size: getSizeText(),
+    qty,
+    priceOne: price.toFixed(2) + " €",
+    discount: discountText,
+    total: total.toFixed(2) + " €",
+    fileName: getFileName()
+  };
+
+  document.getElementById("manualServiceResult").innerText = order.service;
+  document.getElementById("manualDescriptionResult").innerText = order.description || "няма";
+  document.getElementById("manualSizeResult").innerText = order.size;
+  document.getElementById("manualQtyResult").innerText = order.qty + " бр.";
+  document.getElementById("manualPriceOneResult").innerText = order.priceOne;
+  document.getElementById("manualDiscountResult").innerText = order.discount || "няма";
+  document.getElementById("manualDiscountRow").style.display = order.discount ? "flex" : "none";
+  document.getElementById("manualTotalResult").innerText = order.total;
+
+  lastOrder = order;
+  lastQuote = buildQuote(order);
+  error.style.display = "none";
+  document.getElementById("manualOrderError").style.display = "none";
+  document.getElementById("manualCopyStatus").style.display = "none";
+  result.style.display = "block";
+  return order;
+}
+
+[
+  "manualService",
+  "manualDescription",
+  "manualWidth",
+  "manualHeight",
+  "manualQty",
+  "manualPriceOne",
+  "manualDiscount"
+].forEach(function(id) {
+  const element = document.getElementById(id);
+  ["input", "change", "keyup", "blur"].forEach(function(eventName) {
+    element.addEventListener(eventName, function() {
+      calculateManual(false);
+    });
+  });
+});
+
+document.getElementById("manualCalculate").addEventListener("click", function() {
+  calculateManual(true);
+});
+
+document.getElementById("manualCopy").addEventListener("click", async function() {
+  if (!lastQuote) calculateManual(true);
+  if (!lastQuote) return;
+
+  try {
+    await navigator.clipboard.writeText(lastQuote);
+  } catch (error) {
+    const textarea = document.createElement("textarea");
+    textarea.value = lastQuote;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.left = "-9999px";
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    textarea.remove();
+  }
+
+  const status = document.getElementById("manualCopyStatus");
+  status.textContent = "Офертата е копирана.";
+  status.style.display = "block";
+});
+
+function isSupabaseConfigured() {
+  return SUPABASE_URL.startsWith("https://") && SUPABASE_ANON_KEY.length > 20;
+}
+
+function makeSafePathPart(value) {
+  return (value || "client")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60) || "client";
+}
+
+function makeSafeFileName(value) {
+  const parts = (value || "file").split(".");
+  const ext = parts.length > 1 ? "." + parts.pop().toLowerCase().replace(/[^a-z0-9]/g, "") : "";
+  const name = parts.join(".") || "file";
+  return makeSafePathPart(name) + ext;
+}
+
+function encodeStoragePath(path) {
+  return path.split("/").map(encodeURIComponent).join("/");
+}
+
+async function uploadSupabaseFile(file, path) {
+  if (!file) return "";
+
+  const response = await fetch(
+    SUPABASE_URL + "/storage/v1/object/" + SUPABASE_BUCKET + "/" + encodeStoragePath(path),
+    {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: "Bearer " + SUPABASE_ANON_KEY,
+        "Content-Type": file.type || "application/octet-stream",
+        "x-upsert": "false"
+      },
+      body: file
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return path;
+}
+
+async function saveOrderToSupabase(order, details) {
+  if (!isSupabaseConfigured()) return;
+
+  const orderId = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
+  const clientFolder = makeSafePathPart(details.name + "-" + (details.phone || details.email));
+  const basePath = "clients/" + clientFolder + "/" + orderId;
+  const uploadedFile = fileInput.files[0] || null;
+  let filePath = "";
+  const storageErrors = [];
+
+  try {
+    filePath = uploadedFile ? await uploadSupabaseFile(uploadedFile, basePath + "/manual-" + makeSafeFileName(uploadedFile.name)) : "";
+  } catch (error) {
+    console.error("Manual file upload failed", error);
+    storageErrors.push("Файл: " + error.message);
+  }
+
+  const quote = storageErrors.length ? lastQuote + "\n\nStorage грешка:\n" + storageErrors.join("\n") : lastQuote;
+
+  const response = await fetch(SUPABASE_URL + "/rest/v1/orders", {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: "Bearer " + SUPABASE_ANON_KEY,
+      "Content-Type": "application/json",
+      Prefer: "return=minimal"
+    },
+    body: JSON.stringify({
+      id: orderId,
+      client_name: details.name,
+      client_phone: details.phone,
+      client_email: details.email,
+      service: "Ръчна оферта - " + order.service,
+      print_size: order.size,
+      quantity: order.qty,
+      price_one: order.priceOne,
+      total_price: order.total,
+      file_name: order.fileName || "",
+      embroidery_file_path: filePath,
+      quote
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+}
+
+document.getElementById("manualOrderForm").addEventListener("submit", async function(event) {
+  if (event.target.dataset.readyToSubmit === "true") {
+    event.target.dataset.readyToSubmit = "";
+    return;
+  }
+
+  event.preventDefault();
+  const order = calculateManual(true);
+  if (!order) return;
+
+  const details = {
+    name: document.getElementById("manualClientName").value.trim(),
+    phone: document.getElementById("manualClientPhone").value.trim(),
+    email: document.getElementById("manualClientEmail").value.trim()
+  };
+
+  const orderError = document.getElementById("manualOrderError");
+  const status = document.getElementById("manualCopyStatus");
+
+  if (!details.name || (!details.phone && !details.email)) {
+    orderError.style.display = "block";
+    return;
+  }
+
+  orderError.style.display = "none";
+  status.textContent = "Отваряне на формата за заявка...";
+  status.style.display = "block";
+
+  const form = document.getElementById("manualOrderForm");
+  form.elements["fi-sender-fullName"].value = details.name;
+  form.elements["fi-sender-email"].value = details.email;
+  form.elements["fi-text-phone"].value = details.phone;
+  form.elements["fi-text-service"].value = "Ръчна оферта - " + order.service;
+  form.elements["fi-text-print_size"].value = order.size;
+  form.elements["fi-text-quantity"].value = order.qty + " бр.";
+  form.elements["fi-text-price_one"].value = order.priceOne + " без ДДС";
+  form.elements["fi-text-total_price"].value = order.total + " без ДДС";
+  form.elements["fi-text-uploaded_file_name"].value = order.fileName || "не е качен";
+  form.elements["fi-text-quote"].value = lastQuote;
+
+  try {
+    if (isSupabaseConfigured()) {
+      status.textContent = "Записване на поръчката в базата данни...";
+      await saveOrderToSupabase(order, details);
+    }
+  } catch (error) {
+    console.error(error);
+    status.textContent = "Поръчката ще се изпрати по имейл. Записът в базата не успя.";
+  }
+
+  form.dataset.readyToSubmit = "true";
+  form.requestSubmit(document.getElementById("manualEmail"));
+});
+</script>
+</body>
+</html>
