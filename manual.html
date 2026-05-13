@@ -111,6 +111,15 @@
       background: repeating-conic-gradient(#ddd 0% 25%, #fff 0% 50%) 50% / 20px 20px;
     }
 
+    .pdf-preview {
+      display: none;
+      width: 100%;
+      height: 320px;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      background: #fff;
+    }
+
     .info {
       font-size: 13px;
       color: #666;
@@ -242,6 +251,10 @@
       .brand h1 {
         font-size: 24px;
       }
+
+      .pdf-preview {
+        height: 260px;
+      }
     }
   </style>
 </head>
@@ -266,6 +279,7 @@
 
       <div id="manualPreviewWrap" class="preview-wrap">
         <img id="manualPreview" alt="Преглед на качения файл">
+        <iframe id="manualPdfPreview" class="pdf-preview" title="PDF preview"></iframe>
         <div id="manualImageInfo" class="info"></div>
       </div>
     </div>
@@ -360,6 +374,7 @@ const SUPABASE_BUCKET = "order-files";
 
 let lastQuote = "";
 let lastOrder = null;
+let manualRatio = null;
 
 const fileInput = document.getElementById("manualFile");
 const preview = document.getElementById("manualPreview");
@@ -383,12 +398,78 @@ function parsePositiveInteger(value) {
   return Number.isFinite(number) && number > 0 ? number : 0;
 }
 
+function getFileExtension(fileName) {
+  const parts = String(fileName || "").toLowerCase().split(".");
+  return parts.length > 1 ? parts.pop() : "";
+}
+
 function isPreviewableImage(file) {
-  return file && file.type && file.type.startsWith("image/");
+  const extension = getFileExtension(file && file.name);
+  return file && ((file.type && file.type.startsWith("image/")) || ["png", "jpg", "jpeg", "webp", "svg", "gif", "bmp"].includes(extension));
+}
+
+function isPdfFile(file) {
+  return file && (file.type === "application/pdf" || getFileExtension(file.name) === "pdf");
+}
+
+async function readPdfPageSize(file) {
+  const buffer = await file.slice(0, Math.min(file.size, 1024 * 1024)).arrayBuffer();
+  const text = new TextDecoder("latin1").decode(buffer);
+  const boxMatch = text.match(/\/(?:CropBox|MediaBox)\s*\[\s*(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s*\]/);
+  if (!boxMatch) return null;
+
+  const x1 = Number.parseFloat(boxMatch[1]);
+  const y1 = Number.parseFloat(boxMatch[2]);
+  const x2 = Number.parseFloat(boxMatch[3]);
+  const y2 = Number.parseFloat(boxMatch[4]);
+  const widthCm = Math.abs(x2 - x1) * 2.54 / 72;
+  const heightCm = Math.abs(y2 - y1) * 2.54 / 72;
+  if (!Number.isFinite(widthCm) || !Number.isFinite(heightCm) || widthCm <= 0 || heightCm <= 0) return null;
+
+  return { widthCm, heightCm, ratio: widthCm / heightCm };
+}
+
+function setDimensionValue(input, value) {
+  if (!input || !Number.isFinite(value) || value <= 0) return;
+  input.value = value.toFixed(1);
+}
+
+function applyManualFileDimensions(widthCm, heightCm, ratio) {
+  manualRatio = ratio;
+  const widthInput = document.getElementById("manualWidth");
+  const heightInput = document.getElementById("manualHeight");
+  setDimensionValue(widthInput, widthCm);
+  setDimensionValue(heightInput, heightCm);
+}
+
+function updateManualWidthFromRatio() {
+  if (!manualRatio) return;
+  const height = parsePositiveNumber(document.getElementById("manualHeight").value);
+  if (height) setDimensionValue(document.getElementById("manualWidth"), height * manualRatio);
+}
+
+function updateManualHeightFromRatio() {
+  if (!manualRatio) return;
+  const width = parsePositiveNumber(document.getElementById("manualWidth").value);
+  if (width) setDimensionValue(document.getElementById("manualHeight"), width / manualRatio);
+}
+
+function resetManualPdfPreview() {
+  const pdfPreview = document.getElementById("manualPdfPreview");
+  if (!pdfPreview) return;
+
+  if (pdfPreview.dataset.objectUrl) {
+    URL.revokeObjectURL(pdfPreview.dataset.objectUrl);
+  }
+  pdfPreview.removeAttribute("src");
+  pdfPreview.dataset.objectUrl = "";
+  pdfPreview.style.display = "none";
 }
 
 function resetFilePreview() {
+  resetManualPdfPreview();
   preview.removeAttribute("src");
+  preview.style.display = "";
   previewWrap.style.display = "none";
   fileInfo.textContent = "";
   imageInfo.textContent = "";
@@ -397,15 +478,23 @@ function resetFilePreview() {
 
 function clearManualFile() {
   fileInput.value = "";
+  manualRatio = null;
   resetFilePreview();
-  calculateManual(false);
+  document.getElementById("manualWidth").value = "";
+  document.getElementById("manualHeight").value = "";
+  document.getElementById("manualResult").style.display = "none";
+  document.getElementById("manualError").style.display = "none";
+  document.getElementById("manualOrderError").style.display = "none";
+  document.getElementById("manualCopyStatus").style.display = "none";
+  lastQuote = "";
+  lastOrder = null;
 }
 
 function getFileName() {
   return fileInput.files[0] ? fileInput.files[0].name : "";
 }
 
-fileInput.addEventListener("change", function() {
+fileInput.addEventListener("change", async function() {
   resetFilePreview();
   const file = fileInput.files[0];
   if (!file) {
@@ -415,6 +504,31 @@ fileInput.addEventListener("change", function() {
 
   removeFileButton.style.display = "block";
   fileInfo.textContent = "Файл: " + file.name;
+
+  if (isPdfFile(file)) {
+    const pdfPreview = document.getElementById("manualPdfPreview");
+    const pdfUrl = URL.createObjectURL(file);
+    pdfPreview.src = pdfUrl;
+    pdfPreview.dataset.objectUrl = pdfUrl;
+    pdfPreview.style.display = "block";
+    preview.style.display = "none";
+    previewWrap.style.display = "block";
+
+    try {
+      const pdfSize = await readPdfPageSize(file);
+      if (pdfSize) {
+        applyManualFileDimensions(pdfSize.widthCm, pdfSize.heightCm, pdfSize.ratio);
+        imageInfo.textContent = "Файл: " + file.name + " | PDF размер: " + pdfSize.widthCm.toFixed(1) + " × " + pdfSize.heightCm.toFixed(1) + " см. Размерите са попълнени автоматично.";
+      } else {
+        imageInfo.textContent = "Файл: " + file.name + " | PDF файлът е приет, но не съдържа четим размер. Въведете ширина и височина ръчно.";
+      }
+    } catch (error) {
+      imageInfo.textContent = "Файл: " + file.name + " | PDF файлът е приет, но размерът не може да се прочете автоматично. Въведете ширина и височина ръчно.";
+    }
+
+    calculateManual(false);
+    return;
+  }
 
   if (!isPreviewableImage(file)) {
     fileInfo.textContent = "Файлът е приет: " + file.name;
@@ -426,6 +540,10 @@ fileInput.addEventListener("change", function() {
   preview.onload = function() {
     previewWrap.style.display = "block";
     imageInfo.textContent = "Файл: " + file.name + " | Размер: " + preview.naturalWidth + " × " + preview.naturalHeight + " px";
+    if (preview.naturalWidth && preview.naturalHeight) {
+      const ratio = preview.naturalWidth / preview.naturalHeight;
+      applyManualFileDimensions(30, 30 / ratio, ratio);
+    }
     URL.revokeObjectURL(url);
     calculateManual(false);
   };
@@ -523,8 +641,6 @@ function calculateManual(showErrors = true) {
 [
   "manualService",
   "manualDescription",
-  "manualWidth",
-  "manualHeight",
   "manualQty",
   "manualPriceOne",
   "manualDiscount"
@@ -534,6 +650,17 @@ function calculateManual(showErrors = true) {
     element.addEventListener(eventName, function() {
       calculateManual(false);
     });
+  });
+});
+
+["input", "change", "keyup", "blur"].forEach(function(eventName) {
+  document.getElementById("manualWidth").addEventListener(eventName, function() {
+    updateManualHeightFromRatio();
+    calculateManual(false);
+  });
+  document.getElementById("manualHeight").addEventListener(eventName, function() {
+    updateManualWidthFromRatio();
+    calculateManual(false);
   });
 });
 
