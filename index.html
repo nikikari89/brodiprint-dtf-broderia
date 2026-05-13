@@ -805,6 +805,53 @@ function isPreviewableImage(file) {
   return file.type.startsWith("image/") || ["png", "jpg", "jpeg", "webp", "svg", "gif", "bmp"].includes(extension);
 }
 
+function isPdfFile(file) {
+  return file && (file.type === "application/pdf" || getFileExtension(file.name) === "pdf");
+}
+
+async function readPdfPageSize(file) {
+  const buffer = await file.slice(0, Math.min(file.size, 1024 * 1024)).arrayBuffer();
+  const text = new TextDecoder("latin1").decode(buffer);
+  const boxMatch = text.match(/\/(?:CropBox|MediaBox)\s*\[\s*(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s*\]/);
+  if (!boxMatch) return null;
+
+  const x1 = Number.parseFloat(boxMatch[1]);
+  const y1 = Number.parseFloat(boxMatch[2]);
+  const x2 = Number.parseFloat(boxMatch[3]);
+  const y2 = Number.parseFloat(boxMatch[4]);
+  const widthCm = Math.abs(x2 - x1) * 2.54 / 72;
+  const heightCm = Math.abs(y2 - y1) * 2.54 / 72;
+  if (!Number.isFinite(widthCm) || !Number.isFinite(heightCm) || widthCm <= 0 || heightCm <= 0) return null;
+
+  return { widthCm, heightCm, ratio: widthCm / heightCm };
+}
+
+function applyDtfFileDimensions(widthCm, heightCm, ratio) {
+  dtfRatio = ratio;
+  if (!document.getElementById("dtfKeepRatio").checked) return;
+
+  const width = parsePositiveNumber(dtfWidth.value);
+  const height = parsePositiveNumber(dtfHeight.value);
+
+  if (width && !height) {
+    dtfActiveInput = "width";
+    setDimensionValue(dtfHeight, width / ratio);
+    return;
+  }
+
+  if (!width && height) {
+    dtfActiveInput = "height";
+    setDimensionValue(dtfWidth, height * ratio);
+    return;
+  }
+
+  if (!width && !height) {
+    dtfActiveInput = "width";
+    setDimensionValue(dtfWidth, widthCm);
+    setDimensionValue(dtfHeight, heightCm);
+  }
+}
+
 function setAcceptedFileInfo(preview, previewWrapId, infoId, file, message) {
   preview.removeAttribute("src");
   preview.style.display = "none";
@@ -866,7 +913,7 @@ function clearDtfFile() {
   lastQuotes.dtf = "";
 }
 
-dtfUpload.addEventListener("change", function() {
+dtfUpload.addEventListener("change", async function() {
   const file = this.files[0];
   dtfLoaded = false;
   dtfRatio = null;
@@ -880,6 +927,28 @@ dtfUpload.addEventListener("change", function() {
     return;
   }
   document.getElementById("dtfRemoveFile").style.display = "inline-block";
+
+  if (isPdfFile(file)) {
+    try {
+      const pdfSize = await readPdfPageSize(file);
+      if (pdfSize) {
+        applyDtfFileDimensions(pdfSize.widthCm, pdfSize.heightCm, pdfSize.ratio);
+        setAcceptedFileInfo(
+          dtfPreview,
+          "dtfPreviewWrap",
+          "dtfImageInfo",
+          file,
+          "PDF размер: " + pdfSize.widthCm.toFixed(1) + " × " + pdfSize.heightCm.toFixed(1) + " см. Размерите са попълнени автоматично от PDF страницата."
+        );
+      } else {
+        setAcceptedFileInfo(dtfPreview, "dtfPreviewWrap", "dtfImageInfo", file, "PDF файлът е приет, но не съдържа четим размер. Въведете ширина и височина ръчно.");
+      }
+    } catch (error) {
+      setAcceptedFileInfo(dtfPreview, "dtfPreviewWrap", "dtfImageInfo", file, "PDF файлът е приет, но размерът не може да се прочете автоматично. Въведете ширина и височина ръчно.");
+    }
+    autoCalculateDTF();
+    return;
+  }
 
   if (!isPreviewableImage(file)) {
     setAcceptedFileInfo(dtfPreview, "dtfPreviewWrap", "dtfImageInfo", file, "Файлът е приет. Въведете ширина и височина, за да се изчисли DTF цената.");
