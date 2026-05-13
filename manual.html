@@ -480,8 +480,16 @@ function clearManualFile() {
   fileInput.value = "";
   manualRatio = null;
   resetFilePreview();
+  document.getElementById("manualService").selectedIndex = 0;
+  document.getElementById("manualDescription").value = "";
   document.getElementById("manualWidth").value = "";
   document.getElementById("manualHeight").value = "";
+  document.getElementById("manualQty").value = "1";
+  document.getElementById("manualPriceOne").value = "";
+  document.getElementById("manualDiscount").value = "0";
+  document.getElementById("manualClientName").value = "";
+  document.getElementById("manualClientPhone").value = "";
+  document.getElementById("manualClientEmail").value = "";
   document.getElementById("manualResult").style.display = "none";
   document.getElementById("manualError").style.display = "none";
   document.getElementById("manualOrderError").style.display = "none";
