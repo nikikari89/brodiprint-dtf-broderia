@@ -161,6 +161,10 @@
       gap: 12px;
     }
 
+    .hidden {
+      display: none !important;
+    }
+
     .calc, .copy {
       width: 100%;
       margin-top: 18px;
@@ -319,10 +323,26 @@
           <label for="manualQty">Количество</label>
           <input id="manualQty" type="number" inputmode="numeric" min="1" value="1">
         </div>
-        <div>
+        <div id="manualPriceOneWrap">
           <label for="manualPriceOne">Цена за 1 бр. (€)</label>
           <input id="manualPriceOne" type="number" inputmode="decimal" step="0.01" placeholder="напр. 4.50">
         </div>
+      </div>
+
+      <div id="manualEmbroideryFields" class="hidden">
+        <div class="row">
+          <div>
+            <label for="manualStitches">Бримки / бодове</label>
+            <input id="manualStitches" type="number" inputmode="numeric" min="1" step="1" placeholder="напр. 13600">
+          </div>
+          <div>
+            <label for="manualRate1000">Цена за 1000 бода (€)</label>
+            <input id="manualRate1000" type="number" inputmode="decimal" min="0" step="0.01" value="0.80">
+          </div>
+        </div>
+
+        <label for="manualMinimumPrice">Минимум за 1 брой (€)</label>
+        <input id="manualMinimumPrice" type="number" inputmode="decimal" min="0" step="0.01" value="5">
       </div>
 
       <label for="manualDiscount">Отстъпка (%)</label>
@@ -336,6 +356,10 @@
         <div class="line"><span>Вид поставяне:</span><strong id="manualPlacementResult">-</strong></div>
         <div class="line"><span>Описание:</span><strong id="manualDescriptionResult">-</strong></div>
         <div class="line"><span>Размер:</span><strong id="manualSizeResult">-</strong></div>
+        <div class="line" id="manualStitchesRow"><span>Бримки / бодове:</span><strong id="manualStitchesResult">-</strong></div>
+        <div class="line" id="manualRateRow"><span>Цена за 1000 бода:</span><strong id="manualRateResult">-</strong></div>
+        <div class="line" id="manualStitchPriceRow"><span>Цена по бодове за 1 бр.:</span><strong id="manualStitchPriceResult">-</strong></div>
+        <div class="line" id="manualMinimumRow"><span>Минимум за 1 бр.:</span><strong id="manualMinimumResult">-</strong></div>
         <div class="line"><span>Количество:</span><strong id="manualQtyResult">-</strong></div>
         <div class="line"><span>Цена за 1 бр.:</span><strong id="manualPriceOneResult">-</strong></div>
         <div class="line" id="manualDiscountRow"><span>Отстъпка:</span><strong id="manualDiscountResult">-</strong></div>
@@ -479,12 +503,16 @@ function clearManualFile() {
   document.getElementById("manualHeight").value = "";
   document.getElementById("manualQty").value = "1";
   document.getElementById("manualPriceOne").value = "";
+  document.getElementById("manualStitches").value = "";
+  document.getElementById("manualRate1000").value = "0.80";
+  document.getElementById("manualMinimumPrice").value = "5";
   document.getElementById("manualDiscount").value = "0";
   document.getElementById("manualResult").style.display = "none";
   document.getElementById("manualError").style.display = "none";
   document.getElementById("manualCopyStatus").style.display = "none";
   lastQuote = "";
   lastOrder = null;
+  updateManualMode();
 }
 
 function getFileName() {
@@ -571,9 +599,19 @@ function buildQuote(order) {
     "Вид поставяне: " + order.placement,
     "Описание: " + (order.description || "няма"),
     "Размер: " + order.size,
+  ];
+
+  if (order.isEmbroidery) {
+    lines.push("Бримки / бодове: " + order.stitches);
+    lines.push("Цена за 1000 бода: " + order.rate1000 + " без ДДС");
+    lines.push("Цена по бодове за 1 бр.: " + order.stitchPrice + " без ДДС");
+    lines.push("Минимум за 1 бр.: " + order.minimumPrice + " без ДДС");
+  }
+
+  lines.push(
     "Количество: " + order.qty + " бр.",
     "Цена за 1 бр.: " + order.priceOne + " без ДДС"
-  ];
+  );
 
   if (order.discount) {
     lines.push("Отстъпка: " + order.discount);
@@ -585,20 +623,37 @@ function buildQuote(order) {
   return lines.join("\n");
 }
 
+function updateManualMode() {
+  const service = document.getElementById("manualService").value;
+  const isEmbroidery = service === "Бродерия";
+  document.getElementById("manualEmbroideryFields").classList.toggle("hidden", !isEmbroidery);
+  document.getElementById("manualPriceOneWrap").classList.toggle("hidden", isEmbroidery);
+
+  const error = document.getElementById("manualError");
+  error.textContent = isEmbroidery ? "Въведете количество, бримки и цена за 1000 бода." : "Въведете количество и цена за 1 бр.";
+}
+
 function calculateManual(showErrors = true) {
   const service = document.getElementById("manualService").value;
+  const isEmbroidery = service === "Бродерия";
   const placement = document.getElementById("manualPlacement").value;
   const description = document.getElementById("manualDescription").value.trim();
   const qty = parsePositiveInteger(document.getElementById("manualQty").value);
-  const price = parsePositiveNumber(document.getElementById("manualPriceOne").value);
+  const manualPrice = parsePositiveNumber(document.getElementById("manualPriceOne").value);
+  const stitches = parsePositiveInteger(document.getElementById("manualStitches").value);
+  const rate1000 = parsePositiveNumber(document.getElementById("manualRate1000").value);
+  const minimumPrice = parseNonNegativeNumber(document.getElementById("manualMinimumPrice").value);
   const discountPercent = Math.min(100, parseNonNegativeNumber(document.getElementById("manualDiscount").value));
   const result = document.getElementById("manualResult");
   const error = document.getElementById("manualError");
+  const stitchPrice = isEmbroidery && stitches && rate1000 ? (stitches / 1000) * rate1000 : 0;
+  const price = isEmbroidery ? Math.max(stitchPrice, minimumPrice) : manualPrice;
 
-  if (!qty || !price) {
+  if (!qty || (isEmbroidery && (!stitches || !rate1000)) || (!isEmbroidery && !price)) {
     lastQuote = "";
     lastOrder = null;
     result.style.display = "none";
+    error.textContent = isEmbroidery ? "Въведете количество, бримки и цена за 1000 бода." : "Въведете количество и цена за 1 бр.";
     error.style.display = showErrors ? "block" : "none";
     return null;
   }
@@ -610,9 +665,14 @@ function calculateManual(showErrors = true) {
 
   const order = {
     service,
+    isEmbroidery,
     placement,
     description,
     size: getSizeText(),
+    stitches: stitches ? String(stitches) : "",
+    rate1000: rate1000 ? rate1000.toFixed(2) + " €" : "",
+    stitchPrice: stitchPrice ? stitchPrice.toFixed(2) + " €" : "",
+    minimumPrice: minimumPrice ? minimumPrice.toFixed(2) + " €" : "0.00 €",
     qty,
     priceOne: price.toFixed(2) + " €",
     discount: discountText,
@@ -624,6 +684,14 @@ function calculateManual(showErrors = true) {
   document.getElementById("manualPlacementResult").innerText = order.placement;
   document.getElementById("manualDescriptionResult").innerText = order.description || "няма";
   document.getElementById("manualSizeResult").innerText = order.size;
+  document.getElementById("manualStitchesResult").innerText = order.stitches || "-";
+  document.getElementById("manualRateResult").innerText = order.rate1000 || "-";
+  document.getElementById("manualStitchPriceResult").innerText = order.stitchPrice || "-";
+  document.getElementById("manualMinimumResult").innerText = order.minimumPrice;
+  document.getElementById("manualStitchesRow").style.display = isEmbroidery ? "flex" : "none";
+  document.getElementById("manualRateRow").style.display = isEmbroidery ? "flex" : "none";
+  document.getElementById("manualStitchPriceRow").style.display = isEmbroidery ? "flex" : "none";
+  document.getElementById("manualMinimumRow").style.display = isEmbroidery ? "flex" : "none";
   document.getElementById("manualQtyResult").innerText = order.qty + " бр.";
   document.getElementById("manualPriceOneResult").innerText = order.priceOne;
   document.getElementById("manualDiscountResult").innerText = order.discount || "няма";
@@ -644,11 +712,15 @@ function calculateManual(showErrors = true) {
   "manualDescription",
   "manualQty",
   "manualPriceOne",
+  "manualStitches",
+  "manualRate1000",
+  "manualMinimumPrice",
   "manualDiscount"
 ].forEach(function(id) {
   const element = document.getElementById(id);
   ["input", "change", "keyup", "blur"].forEach(function(eventName) {
     element.addEventListener(eventName, function() {
+      if (id === "manualService") updateManualMode();
       calculateManual(false);
     });
   });
