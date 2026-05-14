@@ -330,6 +330,13 @@
       </div>
 
       <div id="manualEmbroideryFields" class="hidden">
+        <label for="manualEmbComplexity">Сложност на бродерията</label>
+        <select id="manualEmbComplexity">
+          <option value="70">Ниска - чист текст / просто лого</option>
+          <option value="136" selected>Средна - стандартно фирмено лого</option>
+          <option value="220">Висока - плътно / детайлно лого</option>
+        </select>
+
         <div class="row">
           <div>
             <label for="manualStitches">Бримки / бодове</label>
@@ -356,6 +363,7 @@
         <div class="line"><span>Вид поставяне:</span><strong id="manualPlacementResult">-</strong></div>
         <div class="line"><span>Описание:</span><strong id="manualDescriptionResult">-</strong></div>
         <div class="line"><span>Размер:</span><strong id="manualSizeResult">-</strong></div>
+        <div class="line" id="manualMethodRow"><span>Метод:</span><strong id="manualMethodResult">-</strong></div>
         <div class="line" id="manualStitchesRow"><span>Бримки / бодове:</span><strong id="manualStitchesResult">-</strong></div>
         <div class="line" id="manualRateRow"><span>Цена за 1000 бода:</span><strong id="manualRateResult">-</strong></div>
         <div class="line" id="manualStitchPriceRow"><span>Цена по бодове за 1 бр.:</span><strong id="manualStitchPriceResult">-</strong></div>
@@ -391,6 +399,8 @@ const SUPABASE_BUCKET = "order-files";
 let lastQuote = "";
 let lastOrder = null;
 let manualRatio = null;
+let manualEmbroiderySource = null;
+let manualImageAnalysis = null;
 
 const fileInput = document.getElementById("manualFile");
 const preview = document.getElementById("manualPreview");
@@ -428,6 +438,10 @@ function isPdfFile(file) {
   return file && (file.type === "application/pdf" || getFileExtension(file.name) === "pdf");
 }
 
+function isEmbroideryMachineFile(file) {
+  return file && ["dst", "emb", "pes", "pec", "jef", "exp", "dsb", "vp3", "xxx", "hus", "sew", "art", "ofm", "cnd"].includes(getFileExtension(file.name));
+}
+
 async function readPdfPageSize(file) {
   const buffer = await file.slice(0, Math.min(file.size, 1024 * 1024)).arrayBuffer();
   const text = new TextDecoder("latin1").decode(buffer);
@@ -443,6 +457,378 @@ async function readPdfPageSize(file) {
   if (!Number.isFinite(widthCm) || !Number.isFinite(heightCm) || widthCm <= 0 || heightCm <= 0) return null;
 
   return { widthCm, heightCm, ratio: widthCm / heightCm };
+}
+
+function readUInt16LE(bytes, offset) {
+  return bytes[offset] | (bytes[offset + 1] << 8);
+}
+
+function readUInt32LE(bytes, offset) {
+  return (bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16) | (bytes[offset + 3] << 24)) >>> 0;
+}
+
+function readInt32LE(bytes, offset) {
+  const value = readUInt32LE(bytes, offset);
+  return value > 0x7FFFFFFF ? value - 0x100000000 : value;
+}
+
+function readFloat64LE(bytes, offset) {
+  return new DataView(bytes.buffer, bytes.byteOffset + offset, 8).getFloat64(0, true);
+}
+
+function readInt8(bytes, offset) {
+  return bytes[offset] > 127 ? bytes[offset] - 256 : bytes[offset];
+}
+
+function formatInteger(value) {
+  return Math.round(value).toLocaleString("bg-BG");
+}
+
+function finishStitchAnalysis(stitches, minX, maxX, minY, maxY, unitToCm) {
+  const widthCm = (maxX - minX) * unitToCm;
+  const heightCm = (maxY - minY) * unitToCm;
+  return {
+    stitches,
+    widthCm: widthCm > 0.2 && widthCm < 200 ? widthCm : null,
+    heightCm: heightCm > 0.2 && heightCm < 200 ? heightCm : null
+  };
+}
+
+function decodeDstRecord(b0, b1, b2) {
+  let x = 0;
+  let y = 0;
+  if (b0 & 0x01) x += 1;
+  if (b0 & 0x02) x -= 1;
+  if (b0 & 0x04) x += 9;
+  if (b0 & 0x08) x -= 9;
+  if (b1 & 0x01) x += 3;
+  if (b1 & 0x02) x -= 3;
+  if (b1 & 0x04) x += 27;
+  if (b1 & 0x08) x -= 27;
+  if (b2 & 0x04) x += 81;
+  if (b2 & 0x08) x -= 81;
+  if (b0 & 0x80) y += 1;
+  if (b0 & 0x40) y -= 1;
+  if (b0 & 0x20) y += 9;
+  if (b0 & 0x10) y -= 9;
+  if (b1 & 0x80) y += 3;
+  if (b1 & 0x40) y -= 3;
+  if (b1 & 0x20) y += 27;
+  if (b1 & 0x10) y -= 27;
+  if (b2 & 0x20) y += 81;
+  if (b2 & 0x10) y -= 81;
+  return { x, y };
+}
+
+function analyzeDstFile(buffer) {
+  const bytes = new Uint8Array(buffer);
+  if (bytes.length <= 512) return { stitches: 0, widthCm: null, heightCm: null };
+  let machineStitches = 0;
+  let x = 0;
+  let y = 0;
+  let minX = 0;
+  let maxX = 0;
+  let minY = 0;
+  let maxY = 0;
+  for (let i = 512; i + 2 < bytes.length; i += 3) {
+    const b0 = bytes[i];
+    const b1 = bytes[i + 1];
+    const b2 = bytes[i + 2];
+    if (b2 === 0xF3) break;
+    machineStitches += 1;
+    const movement = decodeDstRecord(b0, b1, b2);
+    x += movement.x;
+    y += movement.y;
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+  }
+  return {
+    stitches: machineStitches,
+    widthCm: maxX > minX ? (maxX - minX) / 100 : null,
+    heightCm: maxY > minY ? (maxY - minY) / 100 : null
+  };
+}
+
+function isOleCompoundFile(bytes) {
+  const signature = [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
+  return signature.every((value, index) => bytes[index] === value);
+}
+
+function readOleStream(bytes, wantedName) {
+  if (!isOleCompoundFile(bytes)) return null;
+  const sectorSize = 1 << readUInt16LE(bytes, 30);
+  const miniSectorSize = 1 << readUInt16LE(bytes, 32);
+  const fatSectorCount = readUInt32LE(bytes, 44);
+  const firstDirectorySector = readUInt32LE(bytes, 48);
+  const miniStreamCutoff = readUInt32LE(bytes, 56);
+  const firstMiniFatSector = readUInt32LE(bytes, 60);
+  const miniFatSectorCount = readUInt32LE(bytes, 64);
+  const difat = [];
+  for (let i = 0; i < 109; i += 1) {
+    const sector = readUInt32LE(bytes, 76 + i * 4);
+    if (sector !== 0xFFFFFFFF) difat.push(sector);
+  }
+  const sectorOffset = sector => 512 + sector * sectorSize;
+  const fat = [];
+  difat.slice(0, fatSectorCount).forEach(sector => {
+    const start = sectorOffset(sector);
+    for (let offset = start; offset < start + sectorSize; offset += 4) fat.push(readUInt32LE(bytes, offset));
+  });
+  function readSectorChain(startSector) {
+    const chunks = [];
+    let sector = startSector;
+    let guard = 0;
+    while (sector !== 0xFFFFFFFE && sector !== 0xFFFFFFFF && sector < fat.length && guard < 100000) {
+      const start = sectorOffset(sector);
+      chunks.push(bytes.slice(start, start + sectorSize));
+      sector = fat[sector];
+      guard += 1;
+    }
+    const result = new Uint8Array(chunks.reduce((sum, chunk) => sum + chunk.length, 0));
+    let writeOffset = 0;
+    chunks.forEach(chunk => {
+      result.set(chunk, writeOffset);
+      writeOffset += chunk.length;
+    });
+    return result;
+  }
+  const directory = readSectorChain(firstDirectorySector);
+  const entries = [];
+  const decoder = new TextDecoder("utf-16le");
+  for (let offset = 0; offset + 128 <= directory.length; offset += 128) {
+    const nameLength = readUInt16LE(directory, offset + 64);
+    if (!nameLength) continue;
+    entries.push({
+      name: decoder.decode(directory.slice(offset, offset + nameLength - 2)),
+      type: directory[offset + 66],
+      startSector: readUInt32LE(directory, offset + 116),
+      size: readUInt32LE(directory, offset + 120)
+    });
+  }
+  const root = entries.find(entry => entry.type === 5);
+  const miniStream = root ? readSectorChain(root.startSector).slice(0, root.size) : new Uint8Array();
+  const miniFatStream = readSectorChain(firstMiniFatSector).slice(0, miniFatSectorCount * sectorSize);
+  const miniFat = [];
+  for (let offset = 0; offset + 4 <= miniFatStream.length; offset += 4) miniFat.push(readUInt32LE(miniFatStream, offset));
+  function readMiniSectorChain(startSector, size) {
+    const chunks = [];
+    let sector = startSector;
+    let guard = 0;
+    while (sector !== 0xFFFFFFFE && sector !== 0xFFFFFFFF && sector < miniFat.length && guard < 100000) {
+      const start = sector * miniSectorSize;
+      chunks.push(miniStream.slice(start, start + miniSectorSize));
+      sector = miniFat[sector];
+      guard += 1;
+    }
+    const result = new Uint8Array(chunks.reduce((sum, chunk) => sum + chunk.length, 0));
+    let writeOffset = 0;
+    chunks.forEach(chunk => {
+      result.set(chunk, writeOffset);
+      writeOffset += chunk.length;
+    });
+    return result.slice(0, size);
+  }
+  const streamEntry = entries.find(entry => entry.type === 2 && entry.name.includes(wantedName));
+  if (!streamEntry) return null;
+  return streamEntry.size < miniStreamCutoff
+    ? readMiniSectorChain(streamEntry.startSector, streamEntry.size)
+    : readSectorChain(streamEntry.startSector).slice(0, streamEntry.size);
+}
+
+function parseWilcomStitches(stream) {
+  const text = new TextDecoder("latin1").decode(stream);
+  const metadataStitches = stream.length > 0x1B4 ? readInt32LE(stream, 0x1B4) : 0;
+  const colorwaySection = text.match(/Colorway 1[\s\S]{0,500}?Native design/);
+  let colorwayStitches = 0;
+  if (colorwaySection) {
+    const matches = colorwaySection[0].matchAll(/(?:^|\n|\r)(?:\d+)\t(?:\d+)\t\t(\d{3,7})\t/g);
+    for (const match of matches) colorwayStitches += parseInt(match[1], 10);
+  }
+  if (metadataStitches > 0 && metadataStitches < 1000000) return metadataStitches;
+  if (colorwayStitches > 0 && colorwayStitches < 1000000) return colorwayStitches;
+  return null;
+}
+
+function parseWilcomSize(stream) {
+  const unitToCm = 283.4645669;
+  const widthRaw = stream.length > 0x1F4 ? readFloat64LE(stream, 0x1EC) : 0;
+  const heightRaw = stream.length > 0x1A0 ? readUInt16LE(stream, 0x19C) : 0;
+  const widthCm = widthRaw > 0 ? widthRaw / unitToCm : null;
+  const heightCm = heightRaw > 0 ? heightRaw / unitToCm : null;
+  if (widthCm && heightCm && widthCm >= 1 && heightCm >= 1 && widthCm <= 80 && heightCm <= 80) return { widthCm, heightCm };
+  return { widthCm: null, heightCm: null };
+}
+
+function analyzeEmbFile(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const stream = readOleStream(bytes, "WilcomDesignInformationDDD");
+  if (!stream) return null;
+  const stitches = parseWilcomStitches(stream);
+  const size = parseWilcomSize(stream);
+  return { stitches, widthCm: size.widthCm, heightCm: size.heightCm };
+}
+
+function analyzeExpLikeFile(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let x = 0, y = 0, minX = 0, maxX = 0, minY = 0, maxY = 0, stitches = 0;
+  for (let offset = 0; offset + 2 < bytes.length; offset += 3) {
+    const flags = bytes[offset + 2];
+    if (flags === 0x80 || flags === 0xF3) break;
+    if (flags & 0x80) continue;
+    x += readInt8(bytes, offset);
+    y += readInt8(bytes, offset + 1);
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+    stitches += 1;
+  }
+  return stitches ? finishStitchAnalysis(stitches, minX, maxX, minY, maxY, 0.01) : null;
+}
+
+function analyzeJefFile(buffer) {
+  const bytes = new Uint8Array(buffer);
+  if (bytes.length < 128) return null;
+  const stitchOffset = readUInt32LE(bytes, 0);
+  const declaredStitches = readUInt32LE(bytes, 0x1C);
+  if (!stitchOffset || stitchOffset >= bytes.length) return null;
+  let x = 0, y = 0, minX = 0, maxX = 0, minY = 0, maxY = 0, stitches = 0;
+  for (let offset = stitchOffset; offset + 1 < bytes.length; offset += 2) {
+    const b0 = bytes[offset];
+    const b1 = bytes[offset + 1];
+    if (b0 === 0x80 && b1 === 0x10) break;
+    if (b0 === 0x80) continue;
+    x += readInt8(bytes, offset);
+    y += readInt8(bytes, offset + 1);
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+    stitches += 1;
+  }
+  return (stitches || declaredStitches) ? finishStitchAnalysis(stitches || declaredStitches, minX, maxX, minY, maxY, 0.01) : null;
+}
+
+function decodePecMove(value1, value2) {
+  let value = value1;
+  let consumed = 1;
+  if (value1 & 0x80) {
+    value = ((value1 & 0x0F) << 8) + value2;
+    if (value & 0x800) value -= 0x1000;
+    consumed = 2;
+  } else if (value1 >= 0x40) {
+    value -= 0x80;
+  }
+  return { value, consumed };
+}
+
+function findAscii(bytes, text) {
+  const pattern = Array.from(text, char => char.charCodeAt(0));
+  for (let index = 0; index <= bytes.length - pattern.length; index += 1) {
+    let found = true;
+    for (let i = 0; i < pattern.length; i += 1) {
+      if (bytes[index + i] !== pattern[i]) {
+        found = false;
+        break;
+      }
+    }
+    if (found) return index;
+  }
+  return -1;
+}
+
+function analyzePecStitches(bytes, startOffset) {
+  let x = 0, y = 0, minX = 0, maxX = 0, minY = 0, maxY = 0, stitches = 0, offset = startOffset;
+  while (offset + 1 < bytes.length) {
+    const b0 = bytes[offset];
+    const b1 = bytes[offset + 1];
+    if (b0 === 0xFF && b1 === 0x00) break;
+    if (b0 === 0xFE && b1 === 0xB0) {
+      offset += 3;
+      continue;
+    }
+    const dx = decodePecMove(b0, b1);
+    const yOffset = offset + dx.consumed;
+    if (yOffset >= bytes.length) break;
+    const dy = decodePecMove(bytes[yOffset], bytes[yOffset + 1] || 0);
+    x += dx.value;
+    y += dy.value;
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+    stitches += 1;
+    offset += dx.consumed + dy.consumed;
+  }
+  return stitches ? finishStitchAnalysis(stitches, minX, maxX, minY, maxY, 0.01) : null;
+}
+
+function analyzePesOrPecFile(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const pecStart = findAscii(bytes, "#PEC");
+  if (pecStart < 0) return null;
+  return analyzePecStitches(bytes, pecStart + 512);
+}
+
+function analyzeEmbroideryMachineFile(buffer, fileName) {
+  const type = getFileExtension(fileName);
+  if (type === "dst") return analyzeDstFile(buffer);
+  if (type === "emb") return analyzeEmbFile(buffer);
+  if (type === "jef") return analyzeJefFile(buffer);
+  if (type === "pes" || type === "pec") return analyzePesOrPecFile(buffer);
+  if (type === "exp" || type === "dsb") return analyzeExpLikeFile(buffer);
+  return null;
+}
+
+function clampNumber(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function analyzeEmbroideryImage(image) {
+  const canvas = document.createElement("canvas");
+  const sampleSize = 140;
+  canvas.width = sampleSize;
+  canvas.height = sampleSize;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return null;
+  context.drawImage(image, 0, 0, sampleSize, sampleSize);
+  let data;
+  try {
+    data = context.getImageData(0, 0, sampleSize, sampleSize).data;
+  } catch (error) {
+    return null;
+  }
+  const activeMap = new Uint8Array(sampleSize * sampleSize);
+  const colors = new Set();
+  let activePixels = 0;
+  let edgePixels = 0;
+  for (let y = 0; y < sampleSize; y += 1) {
+    for (let x = 0; x < sampleSize; x += 1) {
+      const index = (y * sampleSize + x) * 4;
+      const red = data[index];
+      const green = data[index + 1];
+      const blue = data[index + 2];
+      const alpha = data[index + 3];
+      const isWhite = red > 245 && green > 245 && blue > 245;
+      const isActive = alpha > 32 && !isWhite;
+      if (!isActive) continue;
+      activeMap[y * sampleSize + x] = 1;
+      activePixels += 1;
+      colors.add(Math.floor(red / 48) + "-" + Math.floor(green / 48) + "-" + Math.floor(blue / 48));
+      if (x > 0 && !activeMap[y * sampleSize + x - 1]) edgePixels += 1;
+      if (y > 0 && !activeMap[(y - 1) * sampleSize + x]) edgePixels += 1;
+    }
+  }
+  const coverage = activePixels / (sampleSize * sampleSize);
+  const edgeDensity = activePixels ? edgePixels / activePixels : 0;
+  const colorBoost = clampNumber(colors.size / 8, 0, 1) * 0.14;
+  const fillBoost = clampNumber(coverage / 0.35, 0, 1.4) * 0.45;
+  const detailBoost = clampNumber(edgeDensity / 0.20, 0, 1) * 0.16;
+  return {
+    stitchFactor: clampNumber(0.45 + fillBoost + colorBoost + detailBoost, 0.55, 1.25)
+  };
 }
 
 function setDimensionValue(input, value) {
@@ -495,6 +881,8 @@ function resetFilePreview() {
 function clearManualFile() {
   fileInput.value = "";
   manualRatio = null;
+  manualEmbroiderySource = null;
+  manualImageAnalysis = null;
   resetFilePreview();
   document.getElementById("manualService").selectedIndex = 0;
   document.getElementById("manualPlacement").selectedIndex = 0;
@@ -504,6 +892,7 @@ function clearManualFile() {
   document.getElementById("manualQty").value = "1";
   document.getElementById("manualPriceOne").value = "";
   document.getElementById("manualStitches").value = "";
+  document.getElementById("manualEmbComplexity").value = "136";
   document.getElementById("manualRate1000").value = "0.80";
   document.getElementById("manualMinimumPrice").value = "5";
   document.getElementById("manualDiscount").value = "0";
@@ -513,6 +902,27 @@ function clearManualFile() {
   lastQuote = "";
   lastOrder = null;
   updateManualMode();
+}
+
+function applyManualEmbroiderySize(info) {
+  if (!info || !info.widthCm || !info.heightCm) return;
+  manualRatio = info.widthCm / info.heightCm;
+  applyManualFileDimensions(info.widthCm, info.heightCm, manualRatio);
+}
+
+function getScaledManualStitches(width, height) {
+  if (!manualEmbroiderySource || !manualEmbroiderySource.stitches) return 0;
+  if (!width || !height || !manualEmbroiderySource.widthCm || !manualEmbroiderySource.heightCm) return manualEmbroiderySource.stitches;
+  const originalArea = manualEmbroiderySource.widthCm * manualEmbroiderySource.heightCm;
+  const desiredArea = width * height;
+  if (!originalArea || !desiredArea) return manualEmbroiderySource.stitches;
+  return Math.max(1, Math.round(manualEmbroiderySource.stitches * (desiredArea / originalArea)));
+}
+
+function getEstimatedManualStitches(width, height, density) {
+  if (!width || !height || !density) return 0;
+  const factor = manualImageAnalysis && manualImageAnalysis.stitchFactor ? manualImageAnalysis.stitchFactor : 1;
+  return Math.max(1, Math.round(width * height * density * factor));
 }
 
 function getFileName() {
@@ -529,6 +939,45 @@ fileInput.addEventListener("change", async function() {
 
   removeFileButton.style.display = "block";
   fileInfo.textContent = "Файл: " + file.name;
+  manualEmbroiderySource = null;
+  manualImageAnalysis = null;
+
+  if (isEmbroideryMachineFile(file)) {
+    resetFilePreview();
+    removeFileButton.style.display = "block";
+    file.arrayBuffer()
+      .then(buffer => {
+        const extension = getFileExtension(file.name).toUpperCase();
+        const info = analyzeEmbroideryMachineFile(buffer, file.name);
+        if (info && info.stitches) {
+          manualEmbroiderySource = {
+            type: extension,
+            stitches: info.stitches,
+            widthCm: info.widthCm,
+            heightCm: info.heightCm
+          };
+          if (info.widthCm && info.heightCm) applyManualEmbroiderySize(info);
+          document.getElementById("manualStitches").value = getScaledManualStitches(
+            parsePositiveNumber(document.getElementById("manualWidth").value),
+            parsePositiveNumber(document.getElementById("manualHeight").value)
+          ) || info.stitches;
+          const sizeText = info.widthCm && info.heightCm ? " | Размер " + extension + ": " + info.widthCm.toFixed(1) + " × " + info.heightCm.toFixed(1) + " см" : "";
+          fileInfo.textContent = extension + " файл: " + file.name + " | Бодове: " + formatInteger(info.stitches) + sizeText;
+        } else {
+          fileInfo.textContent = "Файл за бродерия: " + file.name + " | Форматът е приет. Ако бодовете не се прочетат автоматично, въведете размер и ще се сметне ориентировъчно.";
+        }
+        document.getElementById("manualService").value = "Бродерия";
+        updateManualMode();
+        calculateManual(false);
+      })
+      .catch(() => {
+        document.getElementById("manualService").value = "Бродерия";
+        updateManualMode();
+        fileInfo.textContent = "Файлът е приет, но бодовете не могат да се прочетат автоматично. Въведете размер и ще се сметне ориентировъчно.";
+        calculateManual(false);
+      });
+    return;
+  }
 
   if (isPdfFile(file)) {
     const pdfPreview = document.getElementById("manualPdfPreview");
@@ -568,6 +1017,7 @@ fileInput.addEventListener("change", async function() {
     if (preview.naturalWidth && preview.naturalHeight) {
       const ratio = preview.naturalWidth / preview.naturalHeight;
       applyManualFileDimensions(30, 30 / ratio, ratio);
+      manualImageAnalysis = analyzeEmbroideryImage(preview);
     }
     URL.revokeObjectURL(url);
     calculateManual(false);
@@ -602,6 +1052,7 @@ function buildQuote(order) {
   ];
 
   if (order.isEmbroidery) {
+    lines.push("Метод: " + order.method);
     lines.push("Бримки / бодове: " + order.stitches);
     lines.push("Цена за 1000 бода: " + order.rate1000 + " без ДДС");
     lines.push("Цена по бодове за 1 бр.: " + order.stitchPrice + " без ДДС");
@@ -640,7 +1091,16 @@ function calculateManual(showErrors = true) {
   const description = document.getElementById("manualDescription").value.trim();
   const qty = parsePositiveInteger(document.getElementById("manualQty").value);
   const manualPrice = parsePositiveNumber(document.getElementById("manualPriceOne").value);
-  const stitches = parsePositiveInteger(document.getElementById("manualStitches").value);
+  const width = parsePositiveNumber(document.getElementById("manualWidth").value);
+  const height = parsePositiveNumber(document.getElementById("manualHeight").value);
+  const density = parsePositiveNumber(document.getElementById("manualEmbComplexity").value);
+  let stitches = parsePositiveInteger(document.getElementById("manualStitches").value);
+  if (isEmbroidery) {
+    const scaledStitches = getScaledManualStitches(width, height);
+    const estimatedStitches = getEstimatedManualStitches(width, height, density);
+    stitches = scaledStitches || estimatedStitches || stitches;
+    if (stitches) document.getElementById("manualStitches").value = stitches;
+  }
   const rate1000 = parsePositiveNumber(document.getElementById("manualRate1000").value);
   const minimumPrice = parseNonNegativeNumber(document.getElementById("manualMinimumPrice").value);
   const discountPercent = Math.min(100, parseNonNegativeNumber(document.getElementById("manualDiscount").value));
@@ -669,6 +1129,13 @@ function calculateManual(showErrors = true) {
     placement,
     description,
     size: getSizeText(),
+    method: isEmbroidery
+      ? (manualEmbroiderySource && manualEmbroiderySource.stitches
+          ? (manualEmbroiderySource.widthCm && manualEmbroiderySource.heightCm && width && height && stitches !== manualEmbroiderySource.stitches
+              ? "Преизчислени бодове от " + manualEmbroiderySource.type + " файл"
+              : "Реални бодове от " + manualEmbroiderySource.type + " файл")
+          : "Ориентировъчни бримки по размер и сложност")
+      : "",
     stitches: stitches ? String(stitches) : "",
     rate1000: rate1000 ? rate1000.toFixed(2) + " €" : "",
     stitchPrice: stitchPrice ? stitchPrice.toFixed(2) + " €" : "",
@@ -684,10 +1151,12 @@ function calculateManual(showErrors = true) {
   document.getElementById("manualPlacementResult").innerText = order.placement;
   document.getElementById("manualDescriptionResult").innerText = order.description || "няма";
   document.getElementById("manualSizeResult").innerText = order.size;
+  document.getElementById("manualMethodResult").innerText = order.method || "-";
   document.getElementById("manualStitchesResult").innerText = order.stitches || "-";
   document.getElementById("manualRateResult").innerText = order.rate1000 || "-";
   document.getElementById("manualStitchPriceResult").innerText = order.stitchPrice || "-";
   document.getElementById("manualMinimumResult").innerText = order.minimumPrice;
+  document.getElementById("manualMethodRow").style.display = isEmbroidery ? "flex" : "none";
   document.getElementById("manualStitchesRow").style.display = isEmbroidery ? "flex" : "none";
   document.getElementById("manualRateRow").style.display = isEmbroidery ? "flex" : "none";
   document.getElementById("manualStitchPriceRow").style.display = isEmbroidery ? "flex" : "none";
@@ -712,6 +1181,7 @@ function calculateManual(showErrors = true) {
   "manualDescription",
   "manualQty",
   "manualPriceOne",
+  "manualEmbComplexity",
   "manualStitches",
   "manualRate1000",
   "manualMinimumPrice",
