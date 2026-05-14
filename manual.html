@@ -293,6 +293,13 @@
         <option value="Друго">Друго</option>
       </select>
 
+      <label for="manualPlacement">Вид поставяне</label>
+      <select id="manualPlacement">
+        <option value="Едноцветно лого">Едноцветно лого</option>
+        <option value="Многоцветно лого">Многоцветно лого</option>
+        <option value="Работно облекло / сложна позиция">Работно облекло / сложна позиция</option>
+      </select>
+
       <label for="manualDescription">Описание на офертата</label>
       <textarea id="manualDescription" placeholder="Напр. лого отпред на работна блуза, голяма щампа, допълнителна услуга..."></textarea>
 
@@ -321,26 +328,12 @@
       <label for="manualDiscount">Отстъпка (%)</label>
       <input id="manualDiscount" type="number" inputmode="decimal" min="0" max="100" step="0.1" value="0">
 
-      <div class="row">
-        <div>
-          <label for="manualClientName">Име</label>
-          <input id="manualClientName" type="text" autocomplete="name" placeholder="Вашето име">
-        </div>
-        <div>
-          <label for="manualClientPhone">Телефон</label>
-          <input id="manualClientPhone" type="tel" autocomplete="tel" placeholder="Телефон за връзка">
-        </div>
-      </div>
-
-      <label for="manualClientEmail">Имейл</label>
-      <input id="manualClientEmail" type="email" autocomplete="email" placeholder="Имейл за отговор">
-
       <button class="calc" type="button" id="manualCalculate">Изчисли ръчна оферта</button>
       <div id="manualError" class="error">Въведете количество и цена за 1 бр.</div>
-      <div id="manualOrderError" class="error">Въведете име и поне телефон или имейл, за да изпратите заявката.</div>
 
       <div id="manualResult" class="result">
         <div class="line"><span>Услуга:</span><strong id="manualServiceResult">-</strong></div>
+        <div class="line"><span>Вид поставяне:</span><strong id="manualPlacementResult">-</strong></div>
         <div class="line"><span>Описание:</span><strong id="manualDescriptionResult">-</strong></div>
         <div class="line"><span>Размер:</span><strong id="manualSizeResult">-</strong></div>
         <div class="line"><span>Количество:</span><strong id="manualQtyResult">-</strong></div>
@@ -480,18 +473,15 @@ function clearManualFile() {
   manualRatio = null;
   resetFilePreview();
   document.getElementById("manualService").selectedIndex = 0;
+  document.getElementById("manualPlacement").selectedIndex = 0;
   document.getElementById("manualDescription").value = "";
   document.getElementById("manualWidth").value = "";
   document.getElementById("manualHeight").value = "";
   document.getElementById("manualQty").value = "1";
   document.getElementById("manualPriceOne").value = "";
   document.getElementById("manualDiscount").value = "0";
-  document.getElementById("manualClientName").value = "";
-  document.getElementById("manualClientPhone").value = "";
-  document.getElementById("manualClientEmail").value = "";
   document.getElementById("manualResult").style.display = "none";
   document.getElementById("manualError").style.display = "none";
-  document.getElementById("manualOrderError").style.display = "none";
   document.getElementById("manualCopyStatus").style.display = "none";
   lastQuote = "";
   lastOrder = null;
@@ -578,6 +568,7 @@ function buildQuote(order) {
   const lines = [
     "BrodiPrint ръчна оферта",
     "Услуга: " + order.service,
+    "Вид поставяне: " + order.placement,
     "Описание: " + (order.description || "няма"),
     "Размер: " + order.size,
     "Количество: " + order.qty + " бр.",
@@ -596,6 +587,7 @@ function buildQuote(order) {
 
 function calculateManual(showErrors = true) {
   const service = document.getElementById("manualService").value;
+  const placement = document.getElementById("manualPlacement").value;
   const description = document.getElementById("manualDescription").value.trim();
   const qty = parsePositiveInteger(document.getElementById("manualQty").value);
   const price = parsePositiveNumber(document.getElementById("manualPriceOne").value);
@@ -618,6 +610,7 @@ function calculateManual(showErrors = true) {
 
   const order = {
     service,
+    placement,
     description,
     size: getSizeText(),
     qty,
@@ -628,6 +621,7 @@ function calculateManual(showErrors = true) {
   };
 
   document.getElementById("manualServiceResult").innerText = order.service;
+  document.getElementById("manualPlacementResult").innerText = order.placement;
   document.getElementById("manualDescriptionResult").innerText = order.description || "няма";
   document.getElementById("manualSizeResult").innerText = order.size;
   document.getElementById("manualQtyResult").innerText = order.qty + " бр.";
@@ -639,7 +633,6 @@ function calculateManual(showErrors = true) {
   lastOrder = order;
   lastQuote = buildQuote(order);
   error.style.display = "none";
-  document.getElementById("manualOrderError").style.display = "none";
   document.getElementById("manualCopyStatus").style.display = "none";
   result.style.display = "block";
   return order;
@@ -647,6 +640,7 @@ function calculateManual(showErrors = true) {
 
 [
   "manualService",
+  "manualPlacement",
   "manualDescription",
   "manualQty",
   "manualPriceOne",
