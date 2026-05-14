@@ -259,7 +259,7 @@
   </style>
 </head>
 <body>
-<form id="manualOrderForm" name="brodiprint-manual-order" class="app" method="POST" action="https://forminit.com/f/0w1vrsbfz7h" enctype="multipart/form-data">
+<form id="manualOrderForm" name="brodiprint-manual-order" class="app" enctype="multipart/form-data">
   <a class="top-link" href="index.html">Назад към основния калкулатор</a>
 
   <div class="brand">
@@ -642,6 +642,8 @@ function calculateManual(showErrors = true) {
   error.style.display = "none";
   document.getElementById("manualOrderError").style.display = "none";
   document.getElementById("manualCopyStatus").style.display = "none";
+  document.getElementById("manualEmail").disabled = false;
+  document.getElementById("manualEmail").textContent = "Изпрати заявка";
   result.style.display = "block";
   return order;
 }
@@ -795,11 +797,6 @@ async function saveOrderToSupabase(order, details) {
 }
 
 document.getElementById("manualOrderForm").addEventListener("submit", async function(event) {
-  if (event.target.dataset.readyToSubmit === "true") {
-    event.target.dataset.readyToSubmit = "";
-    return;
-  }
-
   event.preventDefault();
   const order = calculateManual(true);
   if (!order) return;
@@ -819,33 +816,25 @@ document.getElementById("manualOrderForm").addEventListener("submit", async func
   }
 
   orderError.style.display = "none";
-  status.textContent = "Отваряне на формата за заявка...";
+  status.textContent = "Записване на заявката...";
   status.style.display = "block";
-
-  const form = document.getElementById("manualOrderForm");
-  form.elements["fi-sender-fullName"].value = details.name;
-  form.elements["fi-sender-email"].value = details.email;
-  form.elements["fi-text-phone"].value = details.phone;
-  form.elements["fi-text-service"].value = "Ръчна оферта - " + order.service;
-  form.elements["fi-text-print_size"].value = order.size;
-  form.elements["fi-text-quantity"].value = order.qty + " бр.";
-  form.elements["fi-text-price_one"].value = order.priceOne + " без ДДС";
-  form.elements["fi-text-total_price"].value = order.total + " без ДДС";
-  form.elements["fi-text-uploaded_file_name"].value = order.fileName || "не е качен";
-  form.elements["fi-text-quote"].value = lastQuote;
 
   try {
     if (isSupabaseConfigured()) {
       status.textContent = "Записване на поръчката в базата данни...";
       await saveOrderToSupabase(order, details);
     }
+    status.textContent = "Заявката е изпратена успешно. Записана е в Supabase.";
+    status.style.display = "block";
+    document.getElementById("manualEmail").disabled = true;
+    document.getElementById("manualEmail").textContent = "Заявката е изпратена";
   } catch (error) {
     console.error(error);
-    status.textContent = "Поръчката ще се изпрати по имейл. Записът в базата не успя.";
+    status.textContent = "";
+    status.style.display = "none";
+    orderError.textContent = "Заявката не беше записана. Проверете Supabase настройките и опитайте пак.";
+    orderError.style.display = "block";
   }
-
-  form.dataset.readyToSubmit = "true";
-  form.requestSubmit(document.getElementById("manualEmail"));
 });
 </script>
 </body>
