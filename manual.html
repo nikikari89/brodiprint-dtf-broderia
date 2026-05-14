@@ -348,7 +348,6 @@
         <div class="line" id="manualDiscountRow"><span>Отстъпка:</span><strong id="manualDiscountResult">-</strong></div>
         <div class="line total"><span>Крайна цена:</span><strong id="manualTotalResult">-</strong></div>
         <div class="note">Всички цени са без ДДС. Финалната цена се потвърждава след преглед на файла.</div>
-        <button class="copy" type="submit" id="manualEmail">Изпрати заявка</button>
         <button class="copy" type="button" id="manualCopy">Копирай оферта</button>
         <div id="manualCopyStatus" class="status"></div>
       </div>
@@ -642,8 +641,6 @@ function calculateManual(showErrors = true) {
   error.style.display = "none";
   document.getElementById("manualOrderError").style.display = "none";
   document.getElementById("manualCopyStatus").style.display = "none";
-  document.getElementById("manualEmail").disabled = false;
-  document.getElementById("manualEmail").textContent = "Изпрати заявка";
   result.style.display = "block";
   return order;
 }
@@ -796,45 +793,9 @@ async function saveOrderToSupabase(order, details) {
   }
 }
 
-document.getElementById("manualOrderForm").addEventListener("submit", async function(event) {
+document.getElementById("manualOrderForm").addEventListener("submit", function(event) {
   event.preventDefault();
-  const order = calculateManual(true);
-  if (!order) return;
-
-  const details = {
-    name: document.getElementById("manualClientName").value.trim(),
-    phone: document.getElementById("manualClientPhone").value.trim(),
-    email: document.getElementById("manualClientEmail").value.trim()
-  };
-
-  const orderError = document.getElementById("manualOrderError");
-  const status = document.getElementById("manualCopyStatus");
-
-  if (!details.name || (!details.phone && !details.email)) {
-    orderError.style.display = "block";
-    return;
-  }
-
-  orderError.style.display = "none";
-  status.textContent = "Записване на заявката...";
-  status.style.display = "block";
-
-  try {
-    if (isSupabaseConfigured()) {
-      status.textContent = "Записване на поръчката в базата данни...";
-      await saveOrderToSupabase(order, details);
-    }
-    status.textContent = "Заявката е изпратена успешно. Записана е в Supabase.";
-    status.style.display = "block";
-    document.getElementById("manualEmail").disabled = true;
-    document.getElementById("manualEmail").textContent = "Заявката е изпратена";
-  } catch (error) {
-    console.error(error);
-    status.textContent = "";
-    status.style.display = "none";
-    orderError.textContent = "Заявката не беше записана. Проверете Supabase настройките и опитайте пак.";
-    orderError.style.display = "block";
-  }
+  calculateManual(true);
 });
 </script>
 </body>
