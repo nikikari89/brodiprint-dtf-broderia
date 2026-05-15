@@ -616,8 +616,8 @@
 
     <label for="embComplexity">Сложност на бродерията</label>
     <select id="embComplexity">
-      <option value="70" data-rate="0.70">Лесна — едноцветен надпис / просто лого</option>
-      <option value="136" data-rate="0.85" selected>Средна — стандартно фирмено лого</option>
+      <option value="70" data-rate="0.70" selected>Лесна — едноцветен надпис / просто лого</option>
+      <option value="136" data-rate="0.85">Средна — стандартно фирмено лого</option>
       <option value="185" data-rate="1.00">Сложна — много детайли / плътно запълване</option>
       <option value="220" data-rate="1.10">Работно облекло / трудна позиция</option>
     </select>
@@ -625,7 +625,7 @@
     <div class="row">
       <div>
         <label for="embRate">Цена за 1000 бода (€)</label>
-        <input id="embRate" type="number" inputmode="decimal" value="0.85" step="0.01" min="0">
+        <input id="embRate" type="number" inputmode="decimal" value="0.70" step="0.01" min="0">
       </div>
       <div>
         <label for="embQty">Количество</label>
@@ -749,7 +749,7 @@ const DTF_TYPES = {
   workwear: { min: 4.80, handling: 2.30 }
 };
 
-const EMB_PRICE_PER_THOUSAND = 0.85;
+const EMB_PRICE_PER_THOUSAND = 0.70;
 const EMB_MIN_PRICE_ONE = 5;
 const EMB_MIN_PRICE_SMALL_QTY = 3.50;
 
@@ -1189,8 +1189,8 @@ function resetEmbroideryCalculatorFields() {
   embHeight.placeholder = "Автоматично";
   document.getElementById("embKeepRatio").checked = true;
   document.getElementById("embKeepRatio").disabled = false;
-  document.getElementById("embComplexity").value = "136";
-  document.getElementById("embRate").value = "0.85";
+  document.getElementById("embComplexity").value = "70";
+  document.getElementById("embRate").value = "0.70";
   document.getElementById("embQty").value = "1";
   resetEmbOrderState();
 }

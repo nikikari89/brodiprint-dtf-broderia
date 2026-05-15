@@ -332,8 +332,8 @@
       <div id="manualEmbroideryFields" class="hidden">
         <label for="manualEmbComplexity">Сложност на бродерията</label>
         <select id="manualEmbComplexity">
-          <option value="70" data-rate="0.70">Лесна - едноцветен надпис / просто лого</option>
-          <option value="136" data-rate="0.85" selected>Средна - стандартно фирмено лого</option>
+          <option value="70" data-rate="0.70" selected>Лесна - едноцветен надпис / просто лого</option>
+          <option value="136" data-rate="0.85">Средна - стандартно фирмено лого</option>
           <option value="185" data-rate="1.00">Сложна - много детайли / плътно запълване</option>
           <option value="220" data-rate="1.10">Работно облекло / трудна позиция</option>
         </select>
@@ -345,7 +345,7 @@
           </div>
           <div>
             <label for="manualRate1000">Цена за 1000 бода (€)</label>
-            <input id="manualRate1000" type="number" inputmode="decimal" min="0" step="0.01" value="0.85">
+            <input id="manualRate1000" type="number" inputmode="decimal" min="0" step="0.01" value="0.70">
           </div>
         </div>
 
@@ -893,8 +893,8 @@ function clearManualFile() {
   document.getElementById("manualQty").value = "1";
   document.getElementById("manualPriceOne").value = "";
   document.getElementById("manualStitches").value = "";
-  document.getElementById("manualEmbComplexity").value = "136";
-  document.getElementById("manualRate1000").value = "0.85";
+  document.getElementById("manualEmbComplexity").value = "70";
+  document.getElementById("manualRate1000").value = "0.70";
   document.getElementById("manualMinimumPrice").value = "5";
   document.getElementById("manualDiscount").value = "0";
   document.getElementById("manualResult").style.display = "none";
