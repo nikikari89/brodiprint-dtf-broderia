@@ -616,15 +616,16 @@
 
     <label for="embComplexity">Сложност на бродерията</label>
     <select id="embComplexity">
-      <option value="80">Лесна — надпис / просто лого</option>
-      <option value="136" selected>Средна — стандартно фирмено лого</option>
-      <option value="185">Сложна — много детайли / плътно запълване</option>
+      <option value="70" data-rate="0.70">Лесна — едноцветен надпис / просто лого</option>
+      <option value="136" data-rate="0.85" selected>Средна — стандартно фирмено лого</option>
+      <option value="185" data-rate="1.00">Сложна — много детайли / плътно запълване</option>
+      <option value="220" data-rate="1.10">Работно облекло / трудна позиция</option>
     </select>
 
     <div class="row">
       <div>
         <label for="embRate">Цена за 1000 бода (€)</label>
-        <input id="embRate" type="number" inputmode="decimal" value="0.80" step="0.01" min="0">
+        <input id="embRate" type="number" inputmode="decimal" value="0.85" step="0.01" min="0">
       </div>
       <div>
         <label for="embQty">Количество</label>
@@ -748,8 +749,9 @@ const DTF_TYPES = {
   workwear: { min: 4.80, handling: 2.30 }
 };
 
-const EMB_PRICE_PER_THOUSAND = 0.80;
-const EMB_MIN_PRICE = 5;
+const EMB_PRICE_PER_THOUSAND = 0.85;
+const EMB_MIN_PRICE_ONE = 5;
+const EMB_MIN_PRICE_SMALL_QTY = 3.50;
 
 function getQuantityDiscount(type, quantity) {
   if (type === "dtf") {
@@ -762,10 +764,12 @@ function getQuantityDiscount(type, quantity) {
   }
 
   if (type === "emb") {
-    if (quantity >= 500) return 10;
-    if (quantity >= 200) return 10;
-    if (quantity >= 100) return 6;
-    if (quantity >= 50) return 3;
+    if (quantity >= 500) return 30;
+    if (quantity >= 200) return 25;
+    if (quantity >= 100) return 20;
+    if (quantity >= 50) return 15;
+    if (quantity >= 30) return 10;
+    if (quantity >= 10) return 5;
   }
 
   return 0;
@@ -1186,7 +1190,7 @@ function resetEmbroideryCalculatorFields() {
   document.getElementById("embKeepRatio").checked = true;
   document.getElementById("embKeepRatio").disabled = false;
   document.getElementById("embComplexity").value = "136";
-  document.getElementById("embRate").value = "0.80";
+  document.getElementById("embRate").value = "0.85";
   document.getElementById("embQty").value = "1";
   resetEmbOrderState();
 }
@@ -1805,7 +1809,17 @@ const embQtyInput = document.getElementById("embQty");
 ["input", "change", "keyup", "blur"].forEach(function(eventName) {
   embQtyInput.addEventListener(eventName, autoCalculateEmbroidery);
 });
-document.getElementById("embComplexity").addEventListener("change", autoCalculateEmbroidery);
+function syncEmbroideryRateFromComplexity() {
+  const selected = document.getElementById("embComplexity").selectedOptions[0];
+  if (selected && selected.dataset.rate) {
+    document.getElementById("embRate").value = selected.dataset.rate;
+  }
+}
+
+document.getElementById("embComplexity").addEventListener("change", function() {
+  syncEmbroideryRateFromComplexity();
+  autoCalculateEmbroidery();
+});
 document.getElementById("embRate").addEventListener("input", autoCalculateEmbroidery);
 
 function updateEmbRatio() {
@@ -1947,17 +1961,18 @@ function calculateEmbroidery() {
   error.style.display = "none";
   const area = w && h ? w * h : null;
   const priceBeforeMinimum = (effectiveStitches / 1000) * pricePerThousand;
-  const minimumOne = EMB_MIN_PRICE;
+  const minimumOne = qty === 1 ? EMB_MIN_PRICE_ONE : (qty < 10 ? EMB_MIN_PRICE_SMALL_QTY : 0);
+  const pricePerPiece = minimumOne ? Math.max(priceBeforeMinimum, minimumOne) : priceBeforeMinimum;
   const stitchTotal = priceBeforeMinimum * qty;
-  const minimumApplies = qty === 1 && priceBeforeMinimum < minimumOne;
-  const subtotal = minimumApplies ? minimumOne : stitchTotal;
+  const minimumApplies = minimumOne > 0 && priceBeforeMinimum < minimumOne;
+  const subtotal = pricePerPiece * qty;
   const discountPercent = getQuantityDiscount("emb", qty);
   const discountAmount = subtotal * (discountPercent / 100);
   const total = subtotal - discountAmount;
   const sizeText = formatEmbroiderySize(w, h);
   const rateText = pricePerThousand.toFixed(2) + " €";
   const stitchPriceText = priceBeforeMinimum.toFixed(2) + " €";
-  const minimumText = minimumOne.toFixed(2) + " €";
+  const minimumText = minimumOne ? minimumOne.toFixed(2) + " €" : "няма";
   const stitchTotalText = stitchTotal.toFixed(2) + " €";
   const discountText = discountPercent ? "-" + discountPercent + "% (" + discountAmount.toFixed(2) + " €)" : "няма";
   const discountTotalText = total.toFixed(2) + " €";

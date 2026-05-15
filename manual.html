@@ -332,9 +332,10 @@
       <div id="manualEmbroideryFields" class="hidden">
         <label for="manualEmbComplexity">Сложност на бродерията</label>
         <select id="manualEmbComplexity">
-          <option value="70">Ниска - чист текст / просто лого</option>
-          <option value="136" selected>Средна - стандартно фирмено лого</option>
-          <option value="220">Висока - плътно / детайлно лого</option>
+          <option value="70" data-rate="0.70">Лесна - едноцветен надпис / просто лого</option>
+          <option value="136" data-rate="0.85" selected>Средна - стандартно фирмено лого</option>
+          <option value="185" data-rate="1.00">Сложна - много детайли / плътно запълване</option>
+          <option value="220" data-rate="1.10">Работно облекло / трудна позиция</option>
         </select>
 
         <div class="row">
@@ -344,7 +345,7 @@
           </div>
           <div>
             <label for="manualRate1000">Цена за 1000 бода (€)</label>
-            <input id="manualRate1000" type="number" inputmode="decimal" min="0" step="0.01" value="0.80">
+            <input id="manualRate1000" type="number" inputmode="decimal" min="0" step="0.01" value="0.85">
           </div>
         </div>
 
@@ -893,7 +894,7 @@ function clearManualFile() {
   document.getElementById("manualPriceOne").value = "";
   document.getElementById("manualStitches").value = "";
   document.getElementById("manualEmbComplexity").value = "136";
-  document.getElementById("manualRate1000").value = "0.80";
+  document.getElementById("manualRate1000").value = "0.85";
   document.getElementById("manualMinimumPrice").value = "5";
   document.getElementById("manualDiscount").value = "0";
   document.getElementById("manualResult").style.display = "none";
@@ -1084,6 +1085,13 @@ function updateManualMode() {
   error.textContent = isEmbroidery ? "Въведете количество, бримки и цена за 1000 бода." : "Въведете количество и цена за 1 бр.";
 }
 
+function syncManualEmbroideryRateFromComplexity() {
+  const selected = document.getElementById("manualEmbComplexity").selectedOptions[0];
+  if (selected && selected.dataset.rate) {
+    document.getElementById("manualRate1000").value = selected.dataset.rate;
+  }
+}
+
 function calculateManual(showErrors = true) {
   const service = document.getElementById("manualService").value;
   const isEmbroidery = service === "Бродерия";
@@ -1107,7 +1115,8 @@ function calculateManual(showErrors = true) {
   const result = document.getElementById("manualResult");
   const error = document.getElementById("manualError");
   const stitchPrice = isEmbroidery && stitches && rate1000 ? (stitches / 1000) * rate1000 : 0;
-  const price = isEmbroidery ? Math.max(stitchPrice, minimumPrice) : manualPrice;
+  const effectiveMinimum = isEmbroidery ? (qty === 1 ? minimumPrice : (qty < 10 ? Math.min(minimumPrice, 3.50) : 0)) : 0;
+  const price = isEmbroidery ? Math.max(stitchPrice, effectiveMinimum) : manualPrice;
 
   if (!qty || (isEmbroidery && (!stitches || !rate1000)) || (!isEmbroidery && !price)) {
     lastQuote = "";
@@ -1139,7 +1148,7 @@ function calculateManual(showErrors = true) {
     stitches: stitches ? String(stitches) : "",
     rate1000: rate1000 ? rate1000.toFixed(2) + " €" : "",
     stitchPrice: stitchPrice ? stitchPrice.toFixed(2) + " €" : "",
-    minimumPrice: minimumPrice ? minimumPrice.toFixed(2) + " €" : "0.00 €",
+    minimumPrice: effectiveMinimum ? effectiveMinimum.toFixed(2) + " €" : "няма",
     qty,
     priceOne: price.toFixed(2) + " €",
     discount: discountText,
@@ -1191,6 +1200,7 @@ function calculateManual(showErrors = true) {
   ["input", "change", "keyup", "blur"].forEach(function(eventName) {
     element.addEventListener(eventName, function() {
       if (id === "manualService") updateManualMode();
+      if (id === "manualEmbComplexity") syncManualEmbroideryRateFromComplexity();
       calculateManual(false);
     });
   });
