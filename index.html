@@ -1116,11 +1116,15 @@ function calculateDTF() {
     ? areaM2 * DTF_PRINT_ONLY_PRICE_PER_M2
     : areaM2 * DTF_PRICE_PER_M2 + dtfTypeSettings.handling;
   const minimumPrice = selectedMode === "print-only" ? DTF_PRINT_ONLY_MIN : dtfTypeSettings.min;
-  const price = Math.round(Math.max(areaPrice, minimumPrice) * 100) / 100;
-  const subtotal = price * qty;
+  const priceCents = Math.round(Math.max(areaPrice, minimumPrice) * 100);
+  const price = priceCents / 100;
+  const subtotalCents = priceCents * qty;
+  const subtotal = subtotalCents / 100;
   const discountPercent = getQuantityDiscount("dtf", qty);
-  const discountAmount = subtotal * (discountPercent / 100);
-  const total = subtotal - discountAmount;
+  const discountCents = Math.round(subtotalCents * (discountPercent / 100));
+  const discountAmount = discountCents / 100;
+  const totalCents = subtotalCents - discountCents;
+  const total = totalCents / 100;
   const discountedPrice = total / qty;
   const sizeText = w && h ? w.toFixed(1) + " × " + h.toFixed(1) + " см" : "-";
   const areaText = areaM2 ? areaM2.toFixed(4) + " м²" : "по минимална цена";
