@@ -915,6 +915,13 @@ function setDimensionValue(input, value) {
   input.value = value.toFixed(1);
 }
 
+function selectDimensionValueOnFocus(input) {
+  if (!input) return;
+  input.addEventListener("focus", () => {
+    window.setTimeout(() => input.select(), 0);
+  });
+}
+
 function syncDimensionPair(widthInput, heightInput, ratio, activeInput) {
   if (!ratio || !Number.isFinite(ratio) || ratio <= 0) return;
 
@@ -1186,6 +1193,8 @@ const embUpload = document.getElementById("embImageUpload");
 const embPreview = document.getElementById("embPreview");
 const embWidth = document.getElementById("embWidth");
 const embHeight = document.getElementById("embHeight");
+
+[dtfWidth, dtfHeight, embWidth, embHeight].forEach(selectDimensionValueOnFocus);
 
 function resetEmbOrderState() {
   document.getElementById("embResult").style.display = "none";
