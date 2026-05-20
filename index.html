@@ -1116,7 +1116,7 @@ function calculateDTF() {
     ? areaM2 * DTF_PRINT_ONLY_PRICE_PER_M2
     : areaM2 * DTF_PRICE_PER_M2 + dtfTypeSettings.handling;
   const minimumPrice = selectedMode === "print-only" ? DTF_PRINT_ONLY_MIN : dtfTypeSettings.min;
-  const price = Math.max(areaPrice, minimumPrice);
+  const price = Math.round(Math.max(areaPrice, minimumPrice) * 100) / 100;
   const subtotal = price * qty;
   const discountPercent = getQuantityDiscount("dtf", qty);
   const discountAmount = subtotal * (discountPercent / 100);
