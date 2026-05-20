@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>BrodiPrint Калкулатор За Ориентировъчна Цена</title>
   <meta name="description" content="Клиентски калкулатор за ориентировъчна цена за DTF печат и бродерия.">
   <link rel="manifest" href="manifest.json">
@@ -740,6 +743,7 @@ if (new URLSearchParams(window.location.search).get("sent") === "1") {
   window.history.replaceState({}, document.title, window.location.pathname);
 }
 
+const APP_VERSION = "2026-05-20-dtf-rate-50";
 const DTF_PRICE_PER_M2 = 50;
 const DTF_PRINT_ONLY_PRICE_PER_M2 = 25;
 const DTF_PRINT_ONLY_MIN = 1;
