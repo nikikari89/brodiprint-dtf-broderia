@@ -527,11 +527,15 @@
     <div class="image-info">При “Само DTF печат без труд” се смята само отпечатването на фолиото по квадратен метър, без поставяне върху дреха.</div>
 
     <div id="dtfTypeWrap">
-      <label for="dtfType">Вид поставяне</label>
+      <label for="dtfType">Вид печат</label>
       <select id="dtfType">
-        <option value="onecolor">Едноцветно лого</option>
-        <option value="multicolor">Многоцветно лого</option>
-        <option value="workwear">Работно облекло / сложна позиция</option>
+        <option value="smallOnecolor">Малко лого едноцветно 7-11 см - 1.30 €</option>
+        <option value="smallMulticolor">Малко лого многоцветно 7-11 см - 1.80 €</option>
+        <option value="largeOnecolor">Голямо лого едноцветно 20-30 см - 1.80 €</option>
+        <option value="largeMulticolor">Голямо лого многоцветно 20-30 см - 2.30 €</option>
+        <option value="largeSquare">Голямо лого 30x30 см - 2.80 €</option>
+        <option value="coverall">Печат гащеризон 10-15 см - 1.80 €</option>
+        <option value="hat">Печат шапка минимум 8 см - 1.80 €</option>
       </select>
     </div>
 
@@ -619,16 +623,16 @@
 
     <label for="embComplexity">Сложност на бродерията</label>
     <select id="embComplexity">
-      <option value="70" data-rate="0.70" selected>Лесна — едноцветен надпис / просто лого</option>
-      <option value="136" data-rate="0.85">Средна — стандартно фирмено лого</option>
-      <option value="185" data-rate="1.00">Сложна — много детайли / плътно запълване</option>
-      <option value="220" data-rate="1.10">Работно облекло / трудна позиция</option>
+      <option value="70" data-rate="0.55" selected>Лесна — едноцветен надпис / просто лого</option>
+      <option value="136" data-rate="0.55">Средна — стандартно фирмено лого</option>
+      <option value="185" data-rate="0.55">Сложна — много детайли / плътно запълване</option>
+      <option value="220" data-rate="0.55">Работно облекло / трудна позиция</option>
     </select>
 
     <div class="row">
       <div>
         <label for="embRate">Цена за 1000 бода (€)</label>
-        <input id="embRate" type="number" inputmode="decimal" value="0.70" step="0.01" min="0">
+        <input id="embRate" type="number" inputmode="decimal" value="0.55" step="0.01" min="0">
       </div>
       <div>
         <label for="embQty">Количество</label>
@@ -743,17 +747,20 @@ if (new URLSearchParams(window.location.search).get("sent") === "1") {
   window.history.replaceState({}, document.title, window.location.pathname);
 }
 
-const APP_VERSION = "2026-05-20-dtf-rate-50";
-const DTF_PRICE_PER_M2 = 50;
+const APP_VERSION = "2026-06-04-koce-prices";
 const DTF_PRINT_ONLY_PRICE_PER_M2 = 25;
 const DTF_PRINT_ONLY_MIN = 1;
 const DTF_TYPES = {
-  onecolor: { min: 1.80, handling: 1.50 },
-  multicolor: { min: 2.20, handling: 1.80 },
-  workwear: { min: 4.80, handling: 2.30 }
+  smallOnecolor: { price: 1.30, label: "фиксирана цена за бр." },
+  smallMulticolor: { price: 1.80, label: "фиксирана цена за бр." },
+  largeOnecolor: { price: 1.80, label: "фиксирана цена за бр." },
+  largeMulticolor: { price: 2.30, label: "фиксирана цена за бр." },
+  largeSquare: { price: 2.80, label: "фиксирана цена за бр." },
+  coverall: { price: 1.80, label: "фиксирана цена за бр." },
+  hat: { price: 1.80, label: "фиксирана цена за бр." }
 };
 
-const EMB_PRICE_PER_THOUSAND = 0.70;
+const EMB_PRICE_PER_THOUSAND = 0.55;
 const EMB_MIN_PRICE_ONE = 5;
 const EMB_MIN_PRICE_SMALL_QTY = 3.50;
 
@@ -1122,18 +1129,18 @@ function calculateDTF() {
     return;
   }
 
-  if (!w || !h) {
+  if (selectedMode === "print-only" && (!w || !h)) {
     result.style.display = "none";
     error.style.display = "none";
     return;
   }
 
   const areaM2 = w && h ? (w * h) / 10000 : 0;
-  const areaPrice = selectedMode === "print-only"
+  const priceBeforeMinimum = selectedMode === "print-only"
     ? areaM2 * DTF_PRINT_ONLY_PRICE_PER_M2
-    : areaM2 * DTF_PRICE_PER_M2 + dtfTypeSettings.handling;
-  const minimumPrice = selectedMode === "print-only" ? DTF_PRINT_ONLY_MIN : dtfTypeSettings.min;
-  const priceCents = Math.round(Math.max(areaPrice, minimumPrice) * 100);
+    : dtfTypeSettings.price;
+  const minimumPrice = selectedMode === "print-only" ? DTF_PRINT_ONLY_MIN : dtfTypeSettings.price;
+  const priceCents = Math.round(Math.max(priceBeforeMinimum, minimumPrice) * 100);
   const price = priceCents / 100;
   const subtotalCents = priceCents * qty;
   const subtotal = subtotalCents / 100;
@@ -1148,7 +1155,7 @@ function calculateDTF() {
   const totalAreaText = areaM2 ? (areaM2 * qty).toFixed(4) + " м²" : "-";
   const rateText = selectedMode === "print-only"
     ? DTF_PRINT_ONLY_PRICE_PER_M2.toFixed(2) + " €/м² без труд"
-    : DTF_PRICE_PER_M2.toFixed(2) + " €/м² + труд";
+    : dtfTypeSettings.price.toFixed(2) + " € " + dtfTypeSettings.label;
   const priceOneText = price.toFixed(2) + " €";
   const discountedPriceText = discountedPrice.toFixed(2) + " €";
   const discountText = discountPercent ? "-" + discountPercent + "% (" + discountAmount.toFixed(2) + " €)" : "няма";
@@ -1217,7 +1224,7 @@ function resetEmbroideryCalculatorFields() {
   document.getElementById("embKeepRatio").checked = true;
   document.getElementById("embKeepRatio").disabled = false;
   document.getElementById("embComplexity").value = "70";
-  document.getElementById("embRate").value = "0.70";
+  document.getElementById("embRate").value = "0.55";
   document.getElementById("embQty").value = "1";
   resetEmbOrderState();
 }
