@@ -563,8 +563,8 @@
     <div id="dtfResult" class="result">
       <div class="result-line"><span>Тип печат:</span><strong id="dtfTypeResult">-</strong></div>
       <div class="result-line"><span>Размер:</span><strong id="dtfSizeResult">-</strong></div>
-      <div class="result-line"><span>Площ за 1 бр.:</span><strong id="dtfAreaResult">-</strong></div>
-      <div class="result-line"><span>Обща площ:</span><strong id="dtfTotalAreaResult">-</strong></div>
+      <div class="result-line" id="dtfAreaRow"><span>Площ за 1 бр.:</span><strong id="dtfAreaResult">-</strong></div>
+      <div class="result-line" id="dtfTotalAreaRow"><span>Обща площ:</span><strong id="dtfTotalAreaResult">-</strong></div>
       <div class="result-line"><span>База DTF:</span><strong id="dtfRateResult">-</strong></div>
       <div class="result-line"><span>Количество:</span><strong id="dtfQtyResult">-</strong></div>
       <div class="result-line"><span>Цена за 1 бр.:</span><strong id="dtfPriceOneResult">-</strong></div>
@@ -1165,7 +1165,9 @@ function calculateDTF() {
   document.getElementById("dtfTypeResult").innerText = selectedModeText + " - " + selectedTypeText;
   document.getElementById("dtfSizeResult").innerText = sizeText;
   document.getElementById("dtfAreaResult").innerText = areaText;
+  document.getElementById("dtfAreaRow").style.display = selectedMode === "print-only" ? "flex" : "none";
   document.getElementById("dtfTotalAreaResult").innerText = totalAreaText;
+  document.getElementById("dtfTotalAreaRow").style.display = selectedMode === "print-only" ? "flex" : "none";
   document.getElementById("dtfRateResult").innerText = rateText;
   document.getElementById("dtfQtyResult").innerText = qty + " бр.";
   document.getElementById("dtfPriceOneResult").innerText = priceOneText;
